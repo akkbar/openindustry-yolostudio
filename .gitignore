@@ -1,0 +1,17 @@
+node_modules/
+frontend/dist/
+desktop/target/
+desktop/gen/
+.venv/
+.tools/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+.env
+*.log
+test-results/
+playwright-report/
+data/*
+!data/README.md

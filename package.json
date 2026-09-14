@@ -1,0 +1,22 @@
+{
+  "name": "openindustry-yolostudio",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": ["frontend"],
+  "engines": { "node": ">=22.12.0" },
+  "scripts": {
+    "setup:backend": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup-backend.ps1",
+    "dev": "node scripts/desktop.mjs dev",
+    "dev:frontend": "npm run dev --workspace frontend",
+    "dev:backend": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/backend.ps1",
+    "build": "npm run build --workspace frontend",
+    "build:desktop": "node scripts/desktop.mjs build --debug --no-bundle",
+    "check:desktop": "node scripts/desktop.mjs check",
+    "test:backend": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/backend.ps1 -Test",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0",
+    "@tauri-apps/cli": "^2.0.0"
+  }
+}
