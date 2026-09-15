@@ -3,14 +3,21 @@ import { ApiError, listProjects, type Project } from '../api';
 import { en } from '../locales/en';
 import ImageImport from './ImageImport';
 import Gallery from './Gallery';
+import ClassManager from './ClassManager';
+import DatasetExport from './DatasetExport';
+import { ProjectClassesProvider } from '../state/ProjectClasses';
 
 function DatasetWorkspace({ projectId }: { projectId: string }) {
   const [imports, setImports] = useState(0);
   const [deletions, setDeletions] = useState(0);
-  return <>
+  return <ProjectClassesProvider projectId={projectId}><div className="dataset-workspace">
+    <ClassManager />
+    <div className="dataset-images">
     <Gallery projectId={projectId} refreshToken={imports} onDeleted={() => setDeletions(value => value + 1)} />
     <ImageImport projectId={projectId} refreshToken={deletions} onImported={() => setImports(value => value + 1)} />
-  </>;
+    <DatasetExport projectId={projectId} />
+    </div>
+  </div></ProjectClassesProvider>;
 }
 
 export default function Dataset() {

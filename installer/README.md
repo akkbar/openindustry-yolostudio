@@ -2,7 +2,7 @@
 
 `npm run build:installer` creates `artifacts/VisionStudio-Setup.exe` and a SHA-256 sidecar. The English-only NSIS installer targets Windows x64 and installs for all users in `C:\Program Files\VisionStudio`. It requires administrator access and creates desktop and Start menu shortcuts plus an uninstall entry.
 
-The payload includes the Tauri desktop, embedded React assets, the complete PyInstaller backend folder with SQLite and Pillow image codecs, and Microsoft's offline WebView2 installer. Initial builds download WebView2 and NSIS tooling; installation does not need those downloads. Python, Node.js, npm, pip, Rust, and CUDA tooling are not end-user prerequisites. No AI libraries are included through Phase 9.
+The payload includes the Tauri desktop, embedded React assets, the complete PyInstaller backend folder with SQLite and Pillow image codecs, and Microsoft's offline WebView2 installer. Initial builds download WebView2 and NSIS tooling; installation does not need those downloads. Python, Node.js, npm, pip, Rust, and CUDA tooling are not end-user prerequisites. No AI libraries are included through Phase 14.
 
 Writable files belong to `%LOCALAPPDATA%\VisionStudio`, including `data`, `projects`, `logs`, and `webview`. Uninstall removes application files and shortcuts while retaining runtime data. Do not add cleanup hooks that remove this data.
 
@@ -32,7 +32,7 @@ On a fresh Windows 10/11 x64 PC/VM without development tools or WebView2:
 3. Launch from the desktop shortcut. Confirm no terminal appears and the dashboard reports **Backend Connected**.
 4. Visit every navigation page. In Settings, verify the English language, version, OS, processor, and `%LOCALAPPDATA%\VisionStudio` data location. Open the data and logs folders.
 5. Create and open a project. Select JPG, JPEG, PNG, and WEBP files, then drag multiple files from Explorer into the import area. Import at least 100 distinct images; check progress, thumbnails, and originals under the project folder. Reimport one file and confirm it is skipped as a duplicate.
-6. Open the Dataset gallery. Check filenames, dimensions, annotation status, scrolling, and page navigation. Open an original preview, cancel one deletion, then confirm deletion of a disposable image and check its count and files. Close and reopen the application. Confirm the prior backend exits, the next launch connects successfully, and the updated image count is retained.
+6. Open the Dataset gallery. Check filenames, dimensions, annotation status, scrolling, and page navigation. Add two classes, select and rename the second, and delete the first; confirm the second keeps index 1. Use Annotate to draw, move, resize, reassign, and delete test boxes. Test zoom/pan/fit/reset, Previous/Next, A/D, Delete, and class keys 1–9. Save one box and note its shape and class. Close and reopen the application, then reopen the editor and verify that box and the annotated count. Confirm the prior backend exits and the next launch connects successfully. Cancel one image deletion, then confirm deletion of a disposable image and check its count and files.
 7. Place a recognizable test file in the application data folder. Uninstall from Windows Settings. Confirm application files, shortcuts, and uninstall entry are removed while that file and imported project data remain.
 8. Retain installer checksum, Windows/WebView2 versions, screenshots, logs, and results. Record offline WebView2 installation and elevated install/uninstall separately from developer-host QA.
 

@@ -91,11 +91,47 @@ export const updateProject = (id: string, draft: Partial<ProjectDraft>) =>
 export const deleteProject = (id: string) =>
   call<void>(`/projects/${encodeURIComponent(id)}`, { method: 'DELETE' });
 
+export interface DatasetValidation {
+  valid: boolean; images: number; annotations: number; classes: number; issue_count: number;
+  issues: { code: string; message: string; image_id: string | null; file_name: string | null; annotation_id: string | null }[];
+}
+export interface DatasetExportResult {
+  exported: boolean; validation: DatasetValidation; path?: string; yaml_path?: string;
+  train_images?: number; val_images?: number; seed?: number;
+}
+export const validateDataset = (id: string) => call<DatasetValidation>(`/projects/${encodeURIComponent(id)}/datasets/validate`, { method: 'POST' });
+export const exportDataset = (id: string) => call<DatasetExportResult>(`/projects/${encodeURIComponent(id)}/datasets/export`, { method: 'POST' });
+
 export interface ImportedImage {
   id: string; file_name: string; width: number; height: number; byte_size: number; thumbnail_url: string;
 }
 export interface ImageImportResult { status: 'imported' | 'duplicate'; image: ImportedImage }
+export interface ProjectClass { id: string; project_id: string; class_index: number; name: string; color: string; created_at: string; annotation_count?: number }
+export interface ProjectClasses { classes: ProjectClass[]; selected_class_id: string | null }
+export const listClasses = (projectId: string, signal?: AbortSignal) =>
+  call<ProjectClasses>(`/projects/${encodeURIComponent(projectId)}/classes`, { signal });
+export const createClass = (projectId: string, name: string) =>
+  call<ProjectClass>(`/projects/${encodeURIComponent(projectId)}/classes`, { method: 'POST', body: JSON.stringify({ name }) });
+export const renameClass = (projectId: string, classId: string, name: string) =>
+  call<ProjectClass>(`/projects/${encodeURIComponent(projectId)}/classes/${encodeURIComponent(classId)}`, { method: 'PATCH', body: JSON.stringify({ name }) });
+export const deleteClass = (projectId: string, classId: string) =>
+  call<void>(`/projects/${encodeURIComponent(projectId)}/classes/${encodeURIComponent(classId)}`, { method: 'DELETE' });
+export const selectClass = (projectId: string, classId: string | null) =>
+  call<{ selected_class_id: string | null }>(`/projects/${encodeURIComponent(projectId)}/annotation-state`, { method: 'PATCH', body: JSON.stringify({ selected_class_id: classId }) });
 export interface GalleryImage extends ImportedImage { annotated: boolean; original_url: string }
+export interface AnnotationBox { id: string; image_id: string; class_id: string; center_x: number; center_y: number; width: number; height: number; created_at?: string; updated_at?: string }
+export interface AnnotationState { image: GalleryImage; annotations: AnnotationBox[]; revision: number; previous_image_id: string | null; next_image_id: string | null; position: number; total: number; annotated_count: number }
+const annotationRoute = (project: string, image: string) => `/projects/${encodeURIComponent(project)}/datasets/images/${encodeURIComponent(image)}/annotations`;
+async function annotationResult(route: string, init: RequestInit = {}): Promise<AnnotationState> {
+  const result = await call<AnnotationState>(route, init);
+  const base = await apiBase();
+  return { ...result, image: { ...result.image, original_url: `${base}${result.image.original_url}`, thumbnail_url: `${base}${result.image.thumbnail_url}` } };
+}
+export const getAnnotations = (project: string, image: string, signal?: AbortSignal) => annotationResult(annotationRoute(project, image), { signal });
+export const saveAnnotation = (project: string, image: string, box: AnnotationBox, revision: number, create: boolean) => annotationResult(`${annotationRoute(project, image)}${create ? '' : `/${encodeURIComponent(box.id)}`}`, {
+  method: create ? 'POST' : 'PATCH', body: JSON.stringify({ ...(create ? { id: box.id } : {}), class_id: box.class_id, center_x: box.center_x, center_y: box.center_y, width: box.width, height: box.height, expected_revision: revision }), signal: AbortSignal.timeout(30_000),
+});
+export const removeAnnotation = (project: string, image: string, id: string, revision: number) => annotationResult(`${annotationRoute(project, image)}/${encodeURIComponent(id)}?expected_revision=${revision}`, { method: 'DELETE', signal: AbortSignal.timeout(30_000) });
 export interface ImagePage { images: GalleryImage[]; total: number; offset: number; limit: number }
 export async function listImages(projectId: string, offset: number, signal?: AbortSignal): Promise<ImagePage> {
   const page = await call<ImagePage>(`/projects/${encodeURIComponent(projectId)}/datasets/images?offset=${offset}&limit=60`, { signal });

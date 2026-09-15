@@ -5,13 +5,13 @@ About: a Platform to create YOLO model then use your connected camera (USB, RTSP
 #========================Line below updated by AI=====================
 # Vision Studio
 
-Industrial computer vision applications, from dataset to production, without writing Python. **Implemented through Phase 9: bundled desktop, offline NSIS installer, local SQLite database, projects, image import, and a dataset gallery with original previews and confirmed deletion. Clean-Windows and elevated installation acceptance remain pending.**
+Industrial computer vision applications, from dataset to production, without writing Python. **Implemented through Phase 14: bundled desktop, offline NSIS installer, projects, image import, dataset gallery, classes, and a bounding-box annotation editor with saved geometry, image navigation, and shortcuts, plus validated YOLO dataset export. Clean-Windows and elevated installation acceptance remain pending.**
 
 The application always uses **English**, including errors and default content. User-entered data is preserved as entered. The source planning documents retain their original language.
 
 ## Planning
 
-Read [the comparison and decisions](docs/plan-comparison.md) first. `phase-plan.md` controls execution order; `step.md` supplies feature task details; `Overall-plan.md` defines product direction. See [Phase 0 verification](docs/phase-0.md), [Phase 1 packaging evidence](docs/phase-1.md), [Phases 2–4 delivery and acceptance](docs/phases-2-4.md), [Phases 5–7 database and projects](docs/phases-5-7.md), [Phase 8 image import](docs/phase-8.md), and [Phase 9 dataset gallery](docs/phase-9.md). The user authorized continuation while the unavailable clean-Windows gate stays pending. Phase 10 class manager has not started.
+Read [the comparison and decisions](docs/plan-comparison.md) first. `phase-plan.md` controls execution order; `step.md` supplies feature task details; `Overall-plan.md` defines product direction. See [Phase 0 verification](docs/phase-0.md), [Phase 1 packaging evidence](docs/phase-1.md), [Phases 2–4 delivery and acceptance](docs/phases-2-4.md), [Phases 5–7 database and projects](docs/phases-5-7.md), [Phase 8 image import](docs/phase-8.md), [Phase 9 dataset gallery](docs/phase-9.md), [Phase 10 class manager](docs/phase-10.md), and [Phases 11–12 annotations](docs/phases-11-12.md). The user authorized continuation while the unavailable clean-Windows gate stays pending. See [Phases 13 and 14 export and validation](docs/phases-13-14.md). Phase 15 has not started.
 
 ## Run the packaged application
 
@@ -127,7 +127,7 @@ Runtime storage defaults to `%LOCALAPPDATA%\VisionStudio\`, with `data`, `projec
 
 The API exposes `GET /health`, `GET /system/info`, project management on `/projects`, and OpenAPI documentation at `/docs`. It binds to `127.0.0.1` only. Failures use one English envelope, `{"error": {"code", "message"}}`.
 
-The workspace database is created on first start using the standard library `sqlite3` module, so no database server is involved. Schema changes are append-only migrations keyed to `PRAGMA user_version`; a database written by a newer application version is refused rather than downgraded. Phase 8 uses Pillow 12.3.0 for image validation and thumbnails. AI runtime, model download, annotation, and camera access remain planned.
+The workspace database is created on first start using the standard library `sqlite3` module, so no database server is involved. Schema changes are append-only migrations keyed to `PRAGMA user_version`; a database written by a newer application version is refused rather than downgraded. Phase 8 uses Pillow 12.3.0 for image validation and thumbnails. AI runtime, model download, and camera access remain planned.
 
 ## Import images
 
@@ -141,4 +141,28 @@ Use **View dataset gallery** in a project, or choose the project on the Dataset 
 
 **Delete** asks for confirmation before removing an image and its annotations. Image counts and the gallery refresh after imports and deletions. Locked files are queued for cleanup on the next deletion or application start. Annotation editing begins in later phases; new images initially show **Not annotated**.
 
+## Manage classes
+
+On the Dataset page, use the **Classes** sidebar to add or rename object classes. Select a class to make it active; its name and index also appear in the image preview. The selection is saved per project and restored after reload or restart. **Clear selection** removes the active choice.
+
+Class indices start at zero and remain stable. Deleting a class requires confirmation, clears selection if that class was active, and does not renumber other classes or reuse the deleted index. Classes used by annotations cannot be deleted. Class names are preserved as entered; duplicate names are checked without case or whitespace differences.
+
+## Annotate images
+
+Use **Annotate** on a gallery card. Choose an active class and drag on the image to draw a box. **Select and move** selects boxes for movement; drag a corner handle to resize. The box list can also select a box. **Assign active class** changes its class, and **Delete selected box** removes it. Coordinates are normalized to the oriented image dimensions and saved automatically after each completed change.
+
+Use **Zoom in/out**, the mouse wheel, **Pan image**, middle-button dragging, **Fit image**, and **Reset view** to control the view. Previous/Next and A/D move through the project's image order. Delete removes the selected box; 1–9 choose the first nine classes in the list. Shortcuts ignore form controls. **Annotated N / total** counts images with saved boxes.
+
+Wait for **All changes saved** before closing. A failed save keeps the draft and blocks image navigation until retry succeeds or you confirm discarding the change. If another window changed the annotations, reload the saved version before editing again. Class creation remains in the Dataset sidebar. Use the validation and export panel below the image importer to prepare a training dataset. Training remains planned for Phase 15 onward.
+
+E2E tests use separate ports (backend 18765, frontend 11420 by default), isolated storage, and a Vite-only API proxy so an existing development session can remain running. Override `VISION_STUDIO_TEST_BACKEND_PORT` and `VISION_STUDIO_TEST_FRONTEND_PORT` if those ports are occupied. The production API's allowed origins are unchanged. Restart a running development backend after backend source changes to load the new endpoints and migrations.
+
 Lockfiles: `package-lock.json`, `desktop/Cargo.lock`, `backend/requirements-dev.lock`, and `backend/requirements-build.lock`. The Python locks capture the tested Windows/Python 3.10 environment; regenerate and verify them deliberately when changing the supported Python baseline or dependencies.
+
+## Validate and export a YOLO dataset
+
+In Dataset, choose **Validate dataset** to check image files, boxes, classes, unannotated images, and duplicate pixels. At least two annotated images are required. Fix every issue, then choose **Export YOLO dataset**. Export repeats validation against the current data.
+
+Each successful export creates `projects/<project-id>/dataset-export/<export-id>/` under the application data folder, with `images/train`, `images/val`, matching YOLO labels, `data.yaml`, and a provenance manifest. The deterministic split uses seed 42, approximately 80% training and 20% validation, with at least one image per set. Exported PNGs match the oriented images used for annotation. Stable project class indices are mapped to consecutive YOLO indices without modifying the project.
+
+Copy the displayed training-configuration path for later training. Snapshots remain independent of later edits and are removed with their project. If moving a snapshot elsewhere, update the absolute `path` in `data.yaml`. Validation results reflect the last check; run validation again after editing. Empty images are blocked until an explicit negative-image review workflow is introduced.

@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test } from '@playwright/test';
 
-const API = 'http://127.0.0.1:8765';
+const API = process.env.VISION_STUDIO_TEST_API ?? 'http://127.0.0.1:8765';
 let project: string;
 test.beforeEach(async ({ request }) => {
   project = (await (await request.post(`${API}/projects`, { data: { name: `Gallery ${crypto.randomUUID()}` } })).json()).id;

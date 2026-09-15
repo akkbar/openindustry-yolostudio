@@ -1,6 +1,6 @@
 import { execFileSync, spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { cp, mkdir, writeFile } from 'node:fs/promises';
+import { cp, mkdir, writeFile, readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
@@ -37,15 +37,17 @@ listener.listen(0, '127.0.0.1');
 await once(listener, 'listening');
 const port = listener.address().port;
 await new Promise((resolve) => listener.close(resolve));
-const child = spawn(executable, [], {
+const launch = () => spawn(executable, [], {
   cwd: testRoot,
   env: { ...environment, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${port}` },
   stdio: 'ignore',
 });
-const exited = new Promise((resolve, reject) => {
-  child.once('exit', (code) => resolve(code));
-  child.once('error', reject);
+const watchExit = process => new Promise((resolve, reject) => {
+  process.once('exit', (code) => resolve(code));
+  process.once('error', reject);
 });
+let child = launch();
+let exited = watchExit(child);
 let browser;
 let page;
 let backendUrl;
@@ -105,13 +107,83 @@ try {
     await expect(page.getByText('105 imported · 0 duplicates skipped · 0 failed')).toBeVisible({ timeout: 45_000 });
     await expect(page.getByText('109 images in this project')).toBeVisible();
     await page.getByRole('button', { name: 'View dataset gallery', exact: true }).click();
+    for (const name of ['Banana', 'Pallet']) {
+      await page.getByRole('button', { name: 'Add class', exact: true }).click();
+      await page.getByLabel('Class name', { exact: true }).fill(name);
+      await page.getByRole('dialog').getByRole('button', { name: 'Add class', exact: true }).click();
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+    }
+    await page.getByRole('button', { name: 'Select class Pallet', exact: true }).click();
+    await expect(page.locator('.active-class')).toHaveText('Active class: 1 · Pallet');
+    await page.getByRole('button', { name: 'Rename class Pallet', exact: true }).click();
+    await page.getByLabel('Class name', { exact: true }).fill('Shipping pallet');
+    await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Delete class Banana', exact: true }).click();
+    await page.getByRole('button', { name: 'Delete class', exact: true }).click();
+    await expect(page.locator('.class-index')).toHaveText(['1']);
+    await page.reload();
+    await expect(page.locator('.active-class')).toHaveText('Active class: 1 · Shipping pallet');
+    await page.locator('.class-manager').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: path.join(root, 'test-results/desktop-classes.png') });
     await expect(page.locator('.gallery-card')).toHaveCount(60);
     await expect(page.getByText('Images 1–60 of 109')).toBeVisible();
     await page.getByRole('button', { name: 'Next page', exact: true }).click();
     await expect(page.locator('.gallery-card')).toHaveCount(49);
     await page.getByRole('button', { name: 'Open image frame-104.png', exact: true }).click();
+    await expect(page.locator('.preview-active-class')).toHaveText('Active class: 1 · Shipping pallet');
     await expect.poll(() => page.locator('.gallery-original').evaluate(image => image.naturalWidth)).toBe(64);
     await page.getByRole('button', { name: 'Close preview', exact: true }).click();
+    await page.getByRole('button', { name: 'Annotate image frame-104.png', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Fit image', exact: true })).toBeEnabled();
+    const canvasImage = await page.locator('.annotation-image-layer').boundingBox();
+    await page.mouse.move(canvasImage.x + canvasImage.width * .2, canvasImage.y + canvasImage.height * .2);
+    await page.mouse.down();
+    await page.mouse.move(canvasImage.x + canvasImage.width * .6, canvasImage.y + canvasImage.height * .6, { steps: 6 });
+    await page.mouse.up();
+    await expect(page.locator('.annotation-progress')).toHaveText('Annotated 1 / 109');
+    await expect(page.locator('.annotation-save-state')).toHaveText('All changes saved');
+    const beforeBox = await page.locator('.annotation-rect').evaluate(rect => ['x', 'y', 'width', 'height'].map(name => Number(rect.getAttribute(name))));
+    const annotationPosition = Number((await page.getByText(/^Image \d+ of 109$/).textContent()).match(/\d+/)[0]);
+    await page.getByRole('button', { name: 'Close editor', exact: true }).click();
+    // Close and relaunch the actual desktop with the same isolated data directory.
+    await page.evaluate(() => { window.__TAURI_INTERNALS__.invoke('plugin:window|close', { label: 'main' }); });
+    expect(await Promise.race([exited, new Promise(resolve => { const timer = setTimeout(() => resolve('timeout'), 10000); timer.unref(); })])).toBe(0);
+    await expect.poll(async () => {
+      try { await fetch(`${backendUrl}/health`, { signal: AbortSignal.timeout(1000) }); return true; } catch { return false; }
+    }).toBe(false);
+    await browser.close().catch(() => {});
+    await expect.poll(async () => {
+      try { await fetch(`http://127.0.0.1:${port}/json/version`, { signal: AbortSignal.timeout(500) }); return true; } catch { return false; }
+    }).toBe(false);
+    child = launch(); exited = watchExit(child);
+    await expect.poll(async () => {
+      try { return (await fetch(`http://127.0.0.1:${port}/json/version`, { signal: AbortSignal.timeout(1000) })).ok; } catch { return false; }
+    }, { timeout: 35_000 }).toBe(true);
+    browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
+    await expect.poll(() => browser.contexts()[0].pages().length).toBeGreaterThan(0);
+    page = browser.contexts()[0].pages()[0];
+    await expect(page.getByRole('status')).toHaveText('Backend Connected', { timeout: 20_000 });
+    backendUrl = await page.evaluate(() => window.__TAURI_INTERNALS__.invoke('backend_url'));
+    await page.getByRole('button', { name: 'Projects', exact: true }).click();
+    await page.getByRole('button', { name: 'Open Desktop QA project', exact: true }).click();
+    await page.getByRole('button', { name: 'View dataset gallery', exact: true }).click();
+    await page.getByRole('button', { name: 'Next page', exact: true }).click();
+    await page.getByRole('button', { name: 'Annotate image frame-104.png', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Fit image', exact: true })).toBeEnabled();
+    await expect(page.locator('.annotation-rect')).toHaveCount(1);
+    const afterBox = await page.locator('.annotation-rect').evaluate(rect => ['x', 'y', 'width', 'height'].map(name => Number(rect.getAttribute(name))));
+    expect(afterBox).toEqual(beforeBox);
+    await page.getByRole('application', { name: 'Annotation canvas' }).focus();
+    await page.keyboard.press('a');
+    await expect(page.getByText(`Image ${annotationPosition - 1} of 109`, { exact: true })).toBeVisible();
+    await page.keyboard.press('d');
+    await expect(page.getByText(`Image ${annotationPosition} of 109`, { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Box 1: Shipping pallet', exact: true }).click();
+    await page.screenshot({ path: path.join(root, 'test-results/desktop-annotations.png') });
+    await page.keyboard.press('Delete');
+    await expect(page.locator('.annotation-progress')).toHaveText('Annotated 0 / 109');
+    await page.getByRole('button', { name: 'Close editor', exact: true }).click();
     await page.getByRole('button', { name: 'Delete image frame-104.png', exact: true }).click();
     await page.getByRole('button', { name: 'Delete image', exact: true }).click();
     await expect(page.locator('.gallery-card')).toHaveCount(48);
@@ -136,6 +208,37 @@ try {
     await page.getByRole('button', { name: 'Delete Desktop QA renamed', exact: true }).click();
     await page.getByRole('button', { name: 'Delete project', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Start your first project.' })).toBeVisible();
+    // Seed a small annotated dataset through the actual packaged API, then export in WebView2.
+    async function api(route, init = {}) {
+      const response = await fetch(`${backendUrl}${route}`, init);
+      expect(response.ok).toBe(true);
+      return response.status === 204 ? null : response.json();
+    }
+    const jsonPost = data => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+    const exportProject = await api('/projects', jsonPost({ name: 'Desktop export QA' }));
+    const exportClass = await api(`/projects/${exportProject.id}/classes`, jsonPost({ name: 'Export pallet' }));
+    for (const file of ['sample.png', 'sample.jpg']) {
+      const imported = await api(`/projects/${exportProject.id}/datasets/images?filename=${file}`, { method: 'POST', body: await readFile(path.join(imageFixtures, file)) });
+      await api(`/projects/${exportProject.id}/datasets/images/${imported.image.id}/annotations`, jsonPost({ id: crypto.randomUUID().replaceAll('-', ''), class_id: exportClass.id, center_x: .5, center_y: .5, width: .4, height: .3, expected_revision: 0 }));
+    }
+    await page.evaluate(id => { window.location.hash = `Dataset/${id}`; }, exportProject.id);
+    await page.getByRole('button', { name: 'Validate dataset', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Dataset valid', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Export YOLO dataset', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Dataset exported', exact: true })).toBeVisible({ timeout: 20_000 });
+    const exportFolder = await page.getByLabel('Export folder', { exact: true }).inputValue();
+    expect(existsSync(path.join(exportFolder, 'data.yaml'))).toBe(true);
+    const exportedManifest = JSON.parse(await readFile(path.join(exportFolder, 'manifest.json'), 'utf8'));
+    expect(exportedManifest.images).toHaveLength(2);
+    for (const row of exportedManifest.images) {
+      expect(existsSync(path.join(exportFolder, 'images', row.split, row.exported_name))).toBe(true);
+      const label = await readFile(path.join(exportFolder, 'labels', row.split, `${row.image_id}.txt`), 'utf8');
+      expect(label.trim().split(/\s+/).map(Number)).toEqual([0, .5, .5, .4, .3]);
+    }
+    await page.locator('.dataset-export').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: path.join(root, 'test-results/desktop-dataset-export.png') });
+    await api(`/projects/${exportProject.id}`, { method: 'DELETE' });
+    expect(existsSync(exportFolder)).toBe(false);
   }
   await page.getByRole('button', { name: 'Dashboard', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Workspace overview' })).toBeVisible();
@@ -160,8 +263,8 @@ try {
   }, { timeout: 5000 }).toBe(false);
   await writeFile(path.join(testRoot, 'report.json'), JSON.stringify({
     passed: true, checked_at_utc: new Date().toISOString(), executable,
-    missing_backend: missingBackend, parent_crash: crash, project_crud_verified: !missingBackend, image_import_verified: !missingBackend, gallery_verified: !missingBackend,
-    clean_machine_verified: false, mode: desktop.mode, backend_url: backendUrl ?? null,
+    missing_backend: missingBackend, parent_crash: crash, project_crud_verified: !missingBackend, image_import_verified: !missingBackend, gallery_verified: !missingBackend, class_manager_verified: !missingBackend, annotation_restart_verified: !missingBackend,
+    dataset_export_verified: !missingBackend, clean_machine_verified: false, mode: desktop.mode, backend_url: backendUrl ?? null,
   }, null, 2));
   console.log(`Desktop passed: ${missingBackend ? 'English missing-backend recovery screen' : crash ? 'parent crash and backend cleanup' : 'relocated/installed application, bundled backend, English shell, normal close and cleanup'}.`);
   console.log(`Desktop QA report: ${path.join(testRoot, 'report.json')}`);

@@ -342,7 +342,7 @@ Acceptance:
 
 # Phase 9 — Dataset Gallery
 
-> Status (2026-09-15): implemented. Project-scoped paginated thumbnails show filenames, dimensions, and annotation status; original images open in an accessible preview dialog. Confirmed deletion includes annotation removal and durable file cleanup. Source build, 71 backend tests, 25 browser tests, 57 frozen-backend checks, release/installed native gallery checks, and 17 installer QA checks passed. See [Phase 9 evidence](docs/phase-9.md) for artifacts and remaining clean-Windows/elevated-install gates. Phase 10 has not started.
+> Status (2026-09-15): implemented. Project-scoped paginated thumbnails show filenames, dimensions, and annotation status; original images open in an accessible preview dialog. Confirmed deletion includes annotation removal and durable file cleanup. Source build, 71 backend tests, 25 browser tests, 57 frozen-backend checks, release/installed native gallery checks, and 17 installer QA checks passed. See [Phase 9 evidence](docs/phase-9.md) for historical artifacts and remaining clean-Windows/elevated-install gates. Class management is covered by Phase 10 below.
 
 Grid:
 
@@ -366,6 +366,8 @@ Acceptance:
 
 # Phase 10 — Class Manager
 
+> Status (2026-09-15): implemented. Project classes support add, rename, confirmed deletion, stable indices, and a persisted active selection shared with the image preview and annotation canvas. Used classes cannot be deleted. Source build, 84 backend tests, 29 browser tests, 64 frozen-backend checks, release/installed native class-manager checks, and 17 installer QA checks passed. See [Phase 10 evidence](docs/phase-10.md) for historical artifacts and remaining clean-Windows/elevated-install gates. Annotation editing is covered by Phases 11–12 below.
+
 CRUD classes.
 
 Contoh:
@@ -385,6 +387,8 @@ Acceptance:
 ---
 
 # Phase 11 — Annotation Canvas
+
+> Status (2026-09-15): implemented. Normalized bounding-box draw/select/move/resize/reassign/delete with autosave, zoom/pan/fit/reset, retryable drafts, and revision conflict protection. Source build, 99 backend tests, 33 browser tests, and 69 frozen-backend checks passed. Release and installed desktop close/relaunch tests restored identical box geometry; all 17 installer QA checks passed. See [Phases 11–12 evidence](docs/phases-11-12.md) for packaging results and remaining gates.
 
 Pecah kecil.
 
@@ -427,6 +431,8 @@ annotation still correct
 
 # Phase 12 — Annotation productivity
 
+> Status (2026-09-15): implemented after core canvas verification. Previous/Next, A/D navigation, Delete, keys 1–9 for the first nine listed classes, and an annotated-image counter are available. Shortcuts ignore form controls and edits block navigation until saved or explicitly discarded. Browser, release native, and installed native checks passed. See [Phases 11–12 evidence](docs/phases-11-12.md). Phases 13 and 14 are implemented below.
+
 Tambahkan:
 
 ```text
@@ -448,6 +454,8 @@ Annotated 72 / 300
 ---
 
 # Phase 13 — YOLO Dataset Export
+
+> Status (2026-09-15): implemented. Immutable YOLO snapshots include oriented images, normalized labels, safe consecutive class mapping, data.yaml, and a manifest. Seed 42 produces a deterministic approximately 80/20 split with nonempty disjoint sets. Build, 114 backend tests, 35 E2E tests, 77 bundled-backend checks, release/installed desktop export, and 17 installer checks passed. Actual Ultralytics loading remains deferred to Phase 15. See [Phases 13 and 14 evidence](docs/phases-13-14.md) for verification and limitations.
 
 Generate internal training dataset:
 
@@ -476,6 +484,8 @@ Acceptance:
 ---
 
 # Phase 14 — Dataset Validation
+
+> Status (2026-09-15): implemented. The Dataset page reports image/annotation/class counts and blocks export for invalid/out-of-bounds boxes, missing classes or images, unreadable images, zero annotations, and duplicate pixels. Export revalidates the current data before publishing. See [Phases 13 and 14 evidence](docs/phases-13-14.md). Phase 15 has not started.
 
 Sebelum train:
 

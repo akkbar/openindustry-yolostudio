@@ -164,6 +164,13 @@ MIGRATIONS: list[tuple[int, tuple[str, ...]]] = [
         "CREATE TABLE pending_image_files (project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, relative_path TEXT NOT NULL, PRIMARY KEY (project_id, relative_path))",
         "CREATE INDEX idx_images_created ON images(created_at, id)",
     )),
+    (4, (
+        "CREATE TABLE project_annotation_state (project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE, selected_class_id TEXT REFERENCES classes(id) ON DELETE SET NULL, next_class_index INTEGER NOT NULL CHECK (next_class_index >= 0))",
+        "INSERT INTO project_annotation_state SELECT p.id, NULL, COALESCE(MAX(c.class_index) + 1, 0) FROM projects p LEFT JOIN classes c ON c.project_id = p.id GROUP BY p.id",
+    )),
+    (5, (
+        "ALTER TABLE images ADD COLUMN annotation_revision INTEGER NOT NULL DEFAULT 0",
+    )),
 ]
 
 SCHEMA_VERSION = MIGRATIONS[-1][0]

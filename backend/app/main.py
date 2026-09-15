@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from app import __version__, db, projects, storage, image_import, gallery
+from app import __version__, db, projects, storage, image_import, gallery, classes, annotations, dataset_export
 from app.errors import register_error_handlers
 from app.paths import initialize_storage
 
@@ -40,6 +40,7 @@ async def lifespan(app: FastAPI):
     app.state.database_path = db.initialize_database(app.state.data_root)
     storage.recover_project_storage(app.state.data_root, app.state.database_path)
     gallery.cleanup_deleted_images(app.state.data_root, app.state.database_path)
+    dataset_export.cleanup_pending_exports(app.state.data_root, app.state.database_path)
     app.state.image_import_slots = asyncio.Semaphore(2)
     yield
 
@@ -58,6 +59,9 @@ register_error_handlers(app)
 app.include_router(projects.router)
 app.include_router(image_import.router)
 app.include_router(gallery.router)
+app.include_router(classes.router)
+app.include_router(annotations.router)
+app.include_router(dataset_export.router)
 
 
 @app.get("/health", response_model=HealthResponse)

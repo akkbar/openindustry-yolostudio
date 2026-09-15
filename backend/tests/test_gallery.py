@@ -134,6 +134,8 @@ def test_phase_8_migration_preserves_images(workspace):
     client, root, project = workspace
     image, _ = upload(client, project)
     with db.transaction(db.database_path(root)) as connection:
+        connection.execute("ALTER TABLE images DROP COLUMN annotation_revision")
+        connection.execute("DROP TABLE project_annotation_state")
         connection.execute("DROP TABLE pending_image_files")
         connection.execute("DROP INDEX idx_images_created")
         connection.execute("PRAGMA user_version = 2")

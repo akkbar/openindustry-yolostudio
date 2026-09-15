@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test } from '@playwright/test';
 
-const API = 'http://127.0.0.1:8765';
+const API = process.env.VISION_STUDIO_TEST_API ?? 'http://127.0.0.1:8765';
 const fixtures = path.resolve('tests/fixtures/images');
 let projectId: string;
 test.beforeEach(async ({ request, page }) => {

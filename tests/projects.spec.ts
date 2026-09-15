@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
-const API = 'http://127.0.0.1:8765';
+const API = process.env.VISION_STUDIO_TEST_API ?? 'http://127.0.0.1:8765';
 
 async function clearProjects(request: APIRequestContext) {
   const listing = await (await request.get(`${API}/projects`)).json();

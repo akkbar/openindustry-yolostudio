@@ -1,31 +1,23 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ApiError, deleteImage, listImages, type GalleryImage, type ImagePage } from '../api';
 import { APP_LOCALE, en } from '../locales/en';
+import Dialog from '../components/Dialog';
+import { useProjectClasses } from '../state/ProjectClasses';
+import AnnotationEditor from './AnnotationEditor';
 
 const copy = en.gallery;
 const number = (value: number) => new Intl.NumberFormat(APP_LOCALE).format(value);
 const dimensions = (image: GalleryImage) => copy.dimensions(number(image.width), number(image.height));
 const describe = (error: unknown) => error instanceof ApiError ? error.message : en.connectionFailure;
 
-function Dialog({ title, busy = false, onClose, children }: { title: string; busy?: boolean; onClose: () => void; children: ReactNode }) {
-  const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const dialog = ref.current!;
-    const previous = document.activeElement as HTMLElement | null;
-    dialog.showModal();
-    return () => { dialog.close(); if (previous?.isConnected) previous.focus(); };
-  }, []);
-  return <dialog className="gallery-dialog" ref={ref} aria-label={title} onCancel={event => { event.preventDefault(); if (!busy) onClose(); }}>
-    <h2>{title}</h2>{children}
-  </dialog>;
-}
-
 function Preview({ image, onClose }: { image: GalleryImage; onClose: () => void }) {
+  const { selectedClass, loading, error } = useProjectClasses();
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   return <Dialog title={copy.preview} onClose={onClose}>
     <p className="gallery-file-name">{image.file_name}</p>
     <p>{dimensions(image)} · {image.annotated ? copy.annotated : copy.notAnnotated}</p>
+    <p className="preview-active-class">{en.classes.active}: {loading ? en.classes.loading : error ? en.classes.unavailable : selectedClass ? `${number(selectedClass.class_index)} · ${selectedClass.name}` : en.classes.none}</p>
     {failed ? <p role="alert">{copy.unavailable} <button className="ghost-button" onClick={() => { setFailed(false); setAttempt(value => value + 1); }}>{copy.retry}</button></p>
       : <img key={attempt} className="gallery-original" src={`${image.original_url}?attempt=${attempt}`} alt={image.file_name} onError={() => setFailed(true)} />}
     <div className="modal-actions"><button className="primary-button" autoFocus onClick={onClose}>{copy.close}</button></div>
@@ -66,6 +58,8 @@ export default function Gallery({ projectId, refreshToken, onDeleted }: { projec
   const [loading, setLoading] = useState(true);
   const [preview, setPreview] = useState<GalleryImage | null>(null);
   const [deleting, setDeleting] = useState<GalleryImage | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
+  const classes = useProjectClasses();
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     const controller = new AbortController();
@@ -89,6 +83,7 @@ export default function Gallery({ projectId, refreshToken, onDeleted }: { projec
         <div className="gallery-grid">{page.images.map(image => <article className="gallery-card" key={image.id}>
           <button className="gallery-open" aria-label={copy.open(image.file_name)} onClick={() => setPreview(image)}><Thumbnail image={image} /><strong title={image.file_name}>{image.file_name}</strong></button>
           <p>{dimensions(image)}</p><span className={`annotation-status ${image.annotated ? 'annotated' : ''}`}>{image.annotated ? copy.annotated : copy.notAnnotated}</span>
+          <button className="ghost-button" aria-label={en.annotator.open(image.file_name)} onClick={() => setEditing(image.id)}>{en.annotator.annotate}</button>
           <button className="ghost-button" aria-label={copy.remove(image.file_name)} onClick={() => setDeleting(image)}>{en.projects.remove}</button>
         </article>)}</div>
         <div className="gallery-pagination"><button className="ghost-button" disabled={offset === 0} onClick={() => turnPage(Math.max(0, offset - 60))}>{copy.previous}</button>
@@ -96,6 +91,7 @@ export default function Gallery({ projectId, refreshToken, onDeleted }: { projec
       </>}
     </>}
     {preview && <Preview image={preview} onClose={() => setPreview(null)} />}
+    {editing && <AnnotationEditor projectId={projectId} initialImageId={editing} onClose={() => { setEditing(null); setReload(value => value + 1); void classes.refresh(); }} />}
     {deleting && <ConfirmDelete projectId={projectId} image={deleting} onClose={() => setDeleting(null)} onDeleted={() => { setDeleting(null); setReload(value => value + 1); onDeleted(); heading.current?.focus(); }} />}
   </section>;
 }

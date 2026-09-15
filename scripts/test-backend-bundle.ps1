@@ -142,6 +142,21 @@ try {
     Assert-Check (-not (Test-Path -LiteralPath (Join-Path $projectFolder ('dataset\images\' + $gallery.images[0].id + '.jpg')))) 'Deleting an image removes its original file.'
     Assert-Check (-not (Test-Path -LiteralPath (Join-Path $projectFolder ('dataset\thumbnails\' + $gallery.images[0].id + '.jpg')))) 'Deleting an image removes its thumbnail.'
     Assert-Check ((Invoke-RestMethod "$baseUrl/projects" -TimeoutSec 5).total -eq 1) 'The packaged backend lists the created project.'
+    $classRoute = "$baseUrl/projects/$($created.id)/classes"
+    $classA = Invoke-RestMethod $classRoute -Method Post -ContentType 'application/json' -Body '{"name":"Banana"}' -TimeoutSec 5
+    $classB = Invoke-RestMethod $classRoute -Method Post -ContentType 'application/json' -Body '{"name":"Pallet"}' -TimeoutSec 5
+    Assert-Check ($classA.class_index -eq 0 -and $classB.class_index -eq 1) 'Class indices start at zero and increase.'
+    $classRenamed = Invoke-RestMethod "$classRoute/$($classB.id)" -Method Patch -ContentType 'application/json' -Body '{"name":"Shipping pallet"}' -TimeoutSec 5
+    Assert-Check ($classRenamed.name -eq 'Shipping pallet' -and $classRenamed.class_index -eq 1) 'Renaming preserves the class index.'
+    $selectionBody = @{ selected_class_id = $classB.id } | ConvertTo-Json -Compress
+    $null = Invoke-RestMethod "$baseUrl/projects/$($created.id)/annotation-state" -Method Patch -ContentType 'application/json' -Body $selectionBody -TimeoutSec 5
+    Assert-Check ((Invoke-RestMethod $classRoute).selected_class_id -eq $classB.id) 'The selected class is available in project annotation state.'
+    $null = Invoke-RestMethod "$classRoute/$($classA.id)" -Method Delete -TimeoutSec 5
+    Assert-Check ((Invoke-RestMethod $classRoute).classes[0].class_index -eq 1) 'Deleting another class does not renumber the selected class.'
+    $null = Invoke-RestMethod "$classRoute/$($classB.id)" -Method Delete -TimeoutSec 5
+    Assert-Check ($null -eq (Invoke-RestMethod $classRoute).selected_class_id) 'Deleting the selected class clears annotation selection.'
+    $classC = Invoke-RestMethod $classRoute -Method Post -ContentType 'application/json' -Body '{"name":"Crate"}' -TimeoutSec 5
+    Assert-Check ($classC.class_index -eq 2) 'Deleted class indices are not reused.'
     $renamed = Invoke-RestMethod "$baseUrl/projects/$($created.id)" -Method Patch -ContentType 'application/json' -Body '{"name":"Renamed bundle project"}' -TimeoutSec 5
     Assert-Check ($renamed.name -eq 'Renamed bundle project') 'The packaged backend renames a project.'
     $null = Invoke-RestMethod "$baseUrl/projects/$($created.id)" -Method Delete -TimeoutSec 5
@@ -171,6 +186,15 @@ try {
     Assert-Check ($invalid.Process.ExitCode -eq 2 -and $invalid.Stderr.Result.Contains('Port must be between 1 and 65535.')) 'Invalid ports return an English validation error.'
 
     $persisted = Invoke-RestMethod "$baseUrl/projects" -Method Post -ContentType 'application/json' -Body '{"name":"Restart persistence check"}' -TimeoutSec 5
+    $persistedClass = Invoke-RestMethod "$baseUrl/projects/$($persisted.id)/classes" -Method Post -ContentType 'application/json' -Body '{"name":"Persisted class"}' -TimeoutSec 5
+    $persistedImage = Invoke-RestMethod "$baseUrl/projects/$($persisted.id)/datasets/images?filename=sample.png" -Method Post -ContentType 'application/octet-stream' -InFile (Join-Path $qaImages 'sample.png') -TimeoutSec 5
+    $annotationRoute = "$baseUrl/projects/$($persisted.id)/datasets/images/$($persistedImage.image.id)/annotations"
+    $annotationId = [Guid]::NewGuid().ToString('N')
+    $annotationBody = @{ id = $annotationId; class_id = $persistedClass.id; center_x = 0.5; center_y = 0.5; width = 0.4; height = 0.3; expected_revision = 0 } | ConvertTo-Json -Compress
+    $annotation = Invoke-RestMethod $annotationRoute -Method Post -ContentType 'application/json' -Body $annotationBody -TimeoutSec 5
+    Assert-Check ($annotation.revision -eq 1 -and $annotation.annotated_count -eq 1) 'Creating a normalized annotation updates image progress.'
+    $retriedAnnotation = Invoke-RestMethod $annotationRoute -Method Post -ContentType 'application/json' -Body $annotationBody -TimeoutSec 5
+    Assert-Check ($retriedAnnotation.annotations.Count -eq 1 -and $retriedAnnotation.revision -eq 1) 'Retrying annotation creation does not duplicate the box.'
     $backendProcess.StandardInput.Close()
     Assert-Check ($backendProcess.WaitForExit(10000)) 'Closing the lifetime pipe stops the executable.'
     Assert-Check ($backendProcess.ExitCode -eq 0) 'The executable shuts down successfully.'
@@ -188,6 +212,34 @@ try {
     Assert-Check $standaloneReady 'Standalone mode starts without a desktop or open input pipe.'
     $reopened = Invoke-RestMethod "$baseUrl/projects/$($persisted.id)" -TimeoutSec 5
     Assert-Check ($reopened.name -eq 'Restart persistence check') 'Project data persists across executable restarts.'
+    $reopenedClasses = Invoke-RestMethod "$baseUrl/projects/$($persisted.id)/classes" -TimeoutSec 5
+    Assert-Check ($reopenedClasses.selected_class_id -eq $persistedClass.id -and $reopenedClasses.classes[0].name -eq 'Persisted class') 'Classes and the selected class persist across executable restarts.'
+    $savedAnnotation = Invoke-RestMethod $annotationRoute -TimeoutSec 5
+    Assert-Check ($savedAnnotation.annotations[0].width -eq 0.4 -and $savedAnnotation.annotations[0].height -eq 0.3 -and $savedAnnotation.annotations[0].class_id -eq $persistedClass.id) 'Normalized coordinates and the assigned class survive backend restart.'
+    $annotationUpdate = @{ class_id = $persistedClass.id; center_x = 0.4; center_y = 0.4; width = 0.2; height = 0.2; expected_revision = 1 } | ConvertTo-Json -Compress
+    $updatedAnnotation = Invoke-RestMethod "$annotationRoute/$annotationId" -Method Patch -ContentType 'application/json' -Body $annotationUpdate -TimeoutSec 5
+    Assert-Check ($updatedAnnotation.revision -eq 2 -and $updatedAnnotation.annotations[0].width -eq 0.2) 'The packaged backend updates annotation geometry.'
+    $datasetRoute = "$baseUrl/projects/$($persisted.id)/datasets"
+    $invalidDataset = Invoke-RestMethod "$datasetRoute/validate" -Method Post -TimeoutSec 10
+    Assert-Check (-not $invalidDataset.valid -and $invalidDataset.images -eq 1) 'Dataset validation requires separate training and validation images.'
+    $blockedExport = Invoke-RestMethod "$datasetRoute/export" -Method Post -TimeoutSec 10
+    Assert-Check (-not $blockedExport.exported) 'Invalid datasets cannot be exported.'
+    $secondImage = Invoke-RestMethod "$datasetRoute/images?filename=sample.jpg" -Method Post -ContentType 'application/octet-stream' -InFile (Join-Path $qaImages 'sample.jpg') -TimeoutSec 5
+    $secondBox = @{ id = [Guid]::NewGuid().ToString('N'); class_id = $persistedClass.id; center_x = 0.5; center_y = 0.5; width = 0.4; height = 0.3; expected_revision = 0 } | ConvertTo-Json -Compress
+    $null = Invoke-RestMethod "$datasetRoute/images/$($secondImage.image.id)/annotations" -Method Post -ContentType 'application/json' -Body $secondBox -TimeoutSec 5
+    $validDataset = Invoke-RestMethod "$datasetRoute/validate" -Method Post -TimeoutSec 10
+    Assert-Check ($validDataset.valid -and $validDataset.annotations -eq 2) 'The packaged backend validates an annotated dataset.'
+    $exportedDataset = Invoke-RestMethod "$datasetRoute/export" -Method Post -TimeoutSec 20
+    Assert-Check ($exportedDataset.exported -and $exportedDataset.train_images -eq 1 -and $exportedDataset.val_images -eq 1) 'YOLO export creates disjoint nonempty training and validation sets.'
+    Assert-Check (Test-Path -LiteralPath $exportedDataset.yaml_path) 'The training configuration exists in the exported snapshot.'
+    $exportManifest = Get-Content -LiteralPath (Join-Path $exportedDataset.path 'manifest.json') -Raw | ConvertFrom-Json
+    Assert-Check ($exportManifest.seed -eq 42 -and $exportManifest.images.Count -eq 2) 'The export manifest records the seed and both images.'
+    foreach ($exportImage in $exportManifest.images) {
+        $exportLabel = Join-Path $exportedDataset.path "labels/$($exportImage.split)/$($exportImage.image_id).txt"
+        Assert-Check ((Test-Path -LiteralPath $exportLabel) -and (Test-Path -LiteralPath (Join-Path $exportedDataset.path "images/$($exportImage.split)/$($exportImage.exported_name)"))) 'Each exported image has a matching YOLO label file.'
+    }
+    $deletedAnnotation = Invoke-RestMethod "$annotationRoute/$($annotationId)?expected_revision=2" -Method Delete -TimeoutSec 5
+    Assert-Check ($deletedAnnotation.annotations.Count -eq 0 -and $deletedAnnotation.annotated_count -eq 1) 'Deleting the final annotation clears only that image progress.'
     $null = Invoke-RestMethod "$baseUrl/projects/$($persisted.id)" -Method Delete -TimeoutSec 5
     $bindings = @(Get-NetTCPConnection -State Listen -OwningProcess $standalone.Process.Id -ErrorAction Stop)
     Assert-Check ($bindings.Count -eq 1 -and $bindings[0].LocalAddress -eq '127.0.0.1') 'The executable listens on loopback only.'

@@ -192,3 +192,51 @@ dd { font-size: 12px; margin: 0; color: #526971; }
 .gallery-dialog h2 { margin-top: 0; }
 .gallery-file-name { overflow-wrap: anywhere; white-space: pre-wrap; }
 .gallery-original { display: block; width: 100%; height: min(60vh, 700px); object-fit: contain; background: #f1f5f4; image-orientation: from-image; }
+.dataset-workspace { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 24px; align-items: start; }
+.dataset-images { min-width: 0; grid-column: 1; grid-row: 1; }
+.class-manager { grid-column: 2; grid-row: 1; margin-top: 24px; min-width: 0; border: 1px solid #d7e2e0; border-radius: 8px; padding: 20px; background: white; }
+.class-manager h2 { margin-top: 0; }
+.class-manager > p { color: #627c83; font-size: 13px; }
+.class-manager .active-class { color: #285e50; overflow-wrap: anywhere; white-space: pre-wrap; }
+.class-list { list-style: none; margin: 16px 0; padding: 0; max-height: 420px; overflow-y: auto; }
+.class-row { padding: 10px 0; border-bottom: 1px solid #e3ebe8; }
+.class-select { display: flex; gap: 8px; align-items: center; width: 100%; padding: 10px 6px; background: #f5f8f7; border: 1px solid transparent; border-radius: 5px; text-align: left; color: #223d45; }
+.class-select[aria-pressed="true"] { background: #e5f4ee; border-color: #418570; }
+.class-select strong { min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.class-index { font-size: 12px; color: #627c83; }
+.class-swatch { flex: 0 0 10px; height: 10px; border-radius: 50%; }
+.class-actions, .class-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.class-used { display: block; font-size: 11px; color: #627c83; padding: 6px; }
+.preview-active-class { overflow-wrap: anywhere; white-space: pre-wrap; color: #285e50; }
+@media (max-width: 1100px) {
+  .dataset-workspace { display: flex; flex-direction: column; gap: 0; }
+  .class-manager, .dataset-images { width: 100%; }
+  .class-list { max-height: 240px; }
+}
+.annotation-dialog { width: calc(100vw - 40px); max-width: 1600px; max-height: calc(100vh - 32px); padding: 20px; }
+.annotation-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.annotation-toolbar > span, .annotation-progress { font-size: 12px; margin: 0 8px; }
+.annotation-save-state { min-height: 20px; font-size: 13px; color: #285e50; }
+.annotation-workspace { display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 16px; }
+.annotation-viewport { position: relative; overflow: hidden; min-width: 0; height: max(280px, 53vh); background: #17252c; touch-action: none; overscroll-behavior: contain; user-select: none; }
+.annotation-viewport:focus { outline: 2px solid #19a98f; outline-offset: 2px; }
+.annotation-viewport.tool-draw { cursor: crosshair; }.annotation-viewport.tool-pan { cursor: grab; }
+.annotation-image-layer { position: absolute; pointer-events: none; }
+.annotation-image-layer > img, .annotation-image-layer > svg { position: absolute; width: 100%; height: 100%; left: 0; top: 0; }
+.annotation-image-layer > img { object-fit: fill; image-orientation: from-image; }
+.annotation-image-layer > svg { overflow: visible; pointer-events: auto; }
+.annotation-rect { stroke-width: 2px; }.selected-box .annotation-rect { stroke-width: 3px; stroke-dasharray: 6 3; }
+[data-handle] { cursor: nwse-resize; }[data-handle="ne"], [data-handle="sw"] { cursor: nesw-resize; }
+.annotation-sidebar { min-width: 0; font-size: 12px; }.annotation-sidebar button { margin: 4px 0; }
+.annotation-box-list { list-style: none; padding: 0; max-height: 160px; overflow-y: auto; }
+.annotation-box-list button { width: 100%; overflow-wrap: anywhere; text-align: left; }.annotation-box-list [aria-pressed="true"] { border-color: #19a98f; background: #e5f4ee; }
+.annotation-help { color: #627c83; font-size: 12px; }
+.gallery-card > .ghost-button { margin-left: 12px; }
+/* Dataset validation and immutable YOLO exports. */
+.dataset-export { padding: 24px; border: 1px solid #dfe6e6; border-radius: 16px; background: #fff; min-width: 0; }
+.dataset-export p { line-height: 1.6; }
+.dataset-export-actions, .dataset-validation-counts { display: flex; flex-wrap: wrap; gap: 20px; }
+.dataset-validation-counts dd { margin: 6px 0; font-size: 24px; font-weight: 700; }
+.dataset-validation-issues { max-height: 280px; overflow: auto; padding-left: 24px; overflow-wrap: anywhere; }
+.dataset-validation-issues li { margin: 10px 0; }
+.dataset-export-result .field { margin: 14px 0; }
