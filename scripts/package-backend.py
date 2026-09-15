@@ -9,6 +9,7 @@ archive = artifacts / "VisionStudio-Backend-0.1.0-windows-x64.zip"
 temporary = archive.with_suffix(".zip.tmp")
 files = sorted(path for path in (artifacts / "backend").rglob("*") if path.is_file())
 files.extend(artifacts / name for name in ("README.md", "Test-Backend.ps1", "backend-manifest.json"))
+files.extend(sorted((artifacts / "qa-images").glob("sample.*")))
 
 for attempt in range(3):
     try:

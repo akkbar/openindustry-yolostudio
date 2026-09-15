@@ -182,7 +182,7 @@ Ini penting supaya nanti kita tidak menemukan masalah packaging setelah project 
 
 # Phase 4 — Base application shell
 
-> Status (2026-09-15): implemented; seven-page navigation, connection status, app version, system information, and Settings are available in English. Browser and native shell tests passed. Later feature pages remain explicitly planned; Phase 5 has not started.
+> Status (2026-09-15): implemented; seven-page navigation, connection status, app version, system information, and Settings are available in English. Browser and native shell tests passed. Later feature pages remain explicitly planned.
 
 Baru mulai UI produk.
 
@@ -212,6 +212,8 @@ Acceptance:
 ---
 
 # Phase 5 — Local database
+
+> Status (2026-09-15): implemented with standard-library SQLite, nine tables, versioned migrations, WAL, and foreign keys. Windows/Python 3.10 source tests and 38 frozen-backend checks passed, including persistence across executable restarts. See [Phases 5–7 evidence](docs/phases-5-7.md).
 
 Gunakan SQLite dulu.
 
@@ -250,6 +252,8 @@ Acceptance:
 
 # Phase 6 — Project Management
 
+> Status (2026-09-15): implemented. Project create/list/read/update/delete, functional Open with reload/history persistence, confirmed deletion, and English errors. User text is preserved exactly; duplicate checks use a separate normalized key. All 17 browser tests passed on Windows, including project and shell workflows. See [Phases 5–7 evidence](docs/phases-5-7.md).
+
 Buat project CRUD.
 
 Schema:
@@ -286,6 +290,10 @@ Acceptance:
 
 # Phase 7 — Dataset Storage
 
+> Status (2026-09-15): implemented. Project folders are automatically created, repaired on read, and confined to the projects root. Deletion is staged for recovery; actual Windows directory-lock and deferred cleanup tests passed. See [Phases 5–7 evidence](docs/phases-5-7.md). Image import is covered by Phase 8 below.
+
+> Packaging regression through Phase 7: primary NSIS installer rebuilt; 38 frozen-backend checks, native release/project workflows, and 17 current-user installer checks passed. Previously pending clean-Windows and elevated production installation gates remain pending.
+
 Setiap project punya folder:
 
 ```text
@@ -307,6 +315,8 @@ Acceptance:
 ---
 
 # Phase 8 — Image Import
+
+> Status (2026-09-15): implemented. Multi-file selection and HTML file-drop support JPG/JPEG, PNG, and WEBP with original-byte copies, thumbnails, duplicate detection, progress, and per-file retry. Verification passed: 59 backend tests, 22 browser tests, 51 frozen-backend checks, native debug/release/installed import of 105+ images, and 17 installer QA checks. See [Phase 8 evidence](docs/phase-8.md) for historical artifacts and remaining clean-Windows/elevated-install gates. Dataset browsing is covered by Phase 9 below.
 
 Support:
 
@@ -331,6 +341,8 @@ Acceptance:
 ---
 
 # Phase 9 — Dataset Gallery
+
+> Status (2026-09-15): implemented. Project-scoped paginated thumbnails show filenames, dimensions, and annotation status; original images open in an accessible preview dialog. Confirmed deletion includes annotation removal and durable file cleanup. Source build, 71 backend tests, 25 browser tests, 57 frozen-backend checks, release/installed native gallery checks, and 17 installer QA checks passed. See [Phase 9 evidence](docs/phase-9.md) for artifacts and remaining clean-Windows/elevated-install gates. Phase 10 has not started.
 
 Grid:
 

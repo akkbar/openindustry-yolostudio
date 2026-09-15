@@ -5,11 +5,13 @@ import {
 } from 'lucide-react';
 import { fetchSystem, getDesktopInfo, openAppFolder, type DesktopInfo, type SystemInfo } from './api';
 import { APP_LOCALE, APP_VERSION, en, type Page } from './locales/en';
+import Projects from './pages/Projects';
+import Dataset from './pages/Dataset';
 
 const icons = { Dashboard: LayoutDashboard, Projects: FolderOpen, Dataset: Images, Models: Box, Cameras: Camera, Runtime: Play, Settings };
 const workflowIcons = [Images, Box, Camera, Scan];
 const readPage = (): Page => {
-  const candidate = window.location.hash.slice(1);
+  const candidate = window.location.hash.slice(1).split('/')[0];
   return Object.hasOwn(en.navigation, candidate) ? candidate as Page : 'Dashboard';
 };
 
@@ -28,6 +30,16 @@ export default function App() {
     const onHash = () => updatePage(readPage());
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+
+  useEffect(() => {
+    const preventFileNavigation = (event: DragEvent) => event.preventDefault();
+    window.addEventListener('dragover', preventFileNavigation);
+    window.addEventListener('drop', preventFileNavigation);
+    return () => {
+      window.removeEventListener('dragover', preventFileNavigation);
+      window.removeEventListener('drop', preventFileNavigation);
+    };
   }, []);
 
   useEffect(() => {
@@ -99,16 +111,16 @@ export default function App() {
       <div className="main-shell">
         <header className="topbar"><div>{en.workspace}<ChevronRight size={14} /><strong>{en.navigation[page]}</strong></div><span className={`connection ${status}`} role="status"><span className="status-dot" />{statusLabel}</span></header>
         <main id="main-content">
-          <div className="page-heading"><div><p className="eyebrow">{page === 'Dashboard' ? en.setup : en.localWorkspace}</p><h1 ref={heading} tabIndex={-1}>{page === 'Dashboard' ? en.overview : en.navigation[page]}</h1><p>{page === 'Dashboard' ? en.intro : page === 'Settings' ? en.settingsDetail : en.tagline}</p></div><span className="phase-badge">{en.foundation}</span></div>
+          <div className="page-heading"><div><p className="eyebrow">{page === 'Dashboard' ? en.setup : en.localWorkspace}</p><h1 ref={heading} tabIndex={-1}>{page === 'Dashboard' ? en.overview : en.navigation[page]}</h1><p>{page === 'Dashboard' ? en.intro : page === 'Settings' ? en.settingsDetail : page === 'Projects' ? en.projects.intro : en.tagline}</p></div><span className="phase-badge">{en.foundation}</span></div>
 
           {status === 'disconnected' && <div className="error-banner" role="alert"><CircleHelp size={20} /><span>{desktop?.startup_error ?? en.connectionFailure}</span><button onClick={() => setRefresh((value) => value + 1)}>{en.retry}</button></div>}
 
           {page === 'Dashboard' ? <>
             <section className="hero"><div className="hero-copy"><span className="hero-kicker"><span className="tiny-dot" />{en.brand}</span><h2>{en.welcome}</h2><p>{en.welcomeDetail}</p><button className="primary-button" onClick={() => setPage('Settings')}>{en.viewSystem}<ArrowRight size={17} /></button></div><div className="vision-art" aria-hidden="true"><div className="art-grid" /><div className="scan-frame"><i /><i /><i /><i /><Box size={88} strokeWidth={0.8} /><div className="scan-line" /></div><span className="art-cross top">+</span><span className="art-cross bottom">+</span></div></section>
             <section className="workflow-section"><div className="section-title"><div><p className="eyebrow">{en.workflow}</p><h2>{en.workflowDetail}</h2></div></div><div className="workflow-grid">{en.steps.map((step, index) => { const Icon = workflowIcons[index]; return <article className="workflow-card" key={step.title}><div className="card-top"><span className="workflow-icon"><Icon size={23} /></span><span className="step-number">0{index + 1}</span></div><h3>{step.title}</h3><p>{step.detail}</p><span className="planned"><span />{en.planned}</span></article>; })}</div></section>
-          </> : page !== 'Settings' ? <section className="empty-state"><span className="empty-icon"><FolderOpen size={32} /></span><span className="planned">{en.planned}</span><h2>{en.futureTitle}</h2><p>{en.pageDetails[page]}</p><button className="primary-button" onClick={() => setPage('Dashboard')}>{en.back}<ArrowRight size={17} /></button></section> : null}
+          </> : page === 'Projects' ? <Projects /> : page === 'Dataset' ? <Dataset /> : page !== 'Settings' ? <section className="empty-state"><span className="empty-icon"><FolderOpen size={32} /></span><span className="planned">{en.planned}</span><h2>{en.futureTitle}</h2><p>{en.pageDetails[page]}</p><button className="primary-button" onClick={() => setPage('Dashboard')}>{en.back}<ArrowRight size={17} /></button></section> : null}
 
-          {(page === 'Dashboard' || page === 'Settings') && <section className="system-panel"><div className="system-heading"><span className="system-icon"><Cpu size={21} /></span><div><h2>{en.system}</h2><p>{en.systemDetail}</p></div><button className="icon-button" title={en.refresh} aria-label={en.refresh} onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={17} /></button></div><dl className="system-grid">{systemRows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>{page === 'Settings' && <dl className="settings-details"><div><dt>{en.processor}</dt><dd>{info?.cpu ?? en.waiting}</dd></div><div><dt>{en.python}</dt><dd>{info?.python_version ?? en.waiting}</dd></div><div><dt>{en.storage}</dt><dd className="storage-path">{info?.data_directory ?? en.waiting}</dd><p>{en.storageDetail}</p></div><div><dt>{en.language}</dt><dd>{en.english}</dd><p>{en.languageDetail}</p></div></dl>}<div className="system-footer"><span className={status === 'connected' ? 'available' : ''}>{status === 'connected' ? <Check size={14} /> : <RefreshCw size={14} />}{status === 'connected' ? en.ready : statusLabel}</span><span>{en.localWorkspace}</span></div></section>}
+          {(page === 'Dashboard' || page === 'Settings') && <section className="system-panel"><div className="system-heading"><span className="system-icon"><Cpu size={21} /></span><div><h2>{en.system}</h2><p>{en.systemDetail}</p></div><button className="icon-button" title={en.refresh} aria-label={en.refresh} onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={17} /></button></div><dl className="system-grid">{systemRows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>{page === 'Settings' && <dl className="settings-details"><div><dt>{en.processor}</dt><dd>{info?.cpu ?? en.waiting}</dd></div><div><dt>{en.python}</dt><dd>{info?.python_version ?? en.waiting}</dd></div><div><dt>{en.storage}</dt><dd className="storage-path">{info?.data_directory ?? en.waiting}</dd><p>{en.storageDetail}</p></div><div><dt>{en.database}</dt><dd className="storage-path database-path">{info?.database_path ?? en.waiting}</dd><p>{en.databaseDetail}</p></div><div><dt>{en.language}</dt><dd>{en.english}</dd><p>{en.languageDetail}</p></div></dl>}<div className="system-footer"><span className={status === 'connected' ? 'available' : ''}>{status === 'connected' ? <Check size={14} /> : <RefreshCw size={14} />}{status === 'connected' ? en.ready : statusLabel}</span><span>{en.localWorkspace}</span></div></section>}
           {page === 'Settings' && desktop && <section className="desktop-tools"><div><strong>{en.buildType}</strong><p>{buildLabel}</p></div>{desktop.mode !== 'browser' && <div className="folder-actions"><button onClick={() => void openFolder('data')}><FolderOpen size={16} />{en.openData}</button><button onClick={() => void openFolder('logs')}><FolderOpen size={16} />{en.openLogs}</button></div>}{folderError && <p role="alert">{en.folderError}</p>}</section>}
           <footer className="main-footer"><span>{en.brand}</span><span>{en.tagline}</span></footer>
         </main>

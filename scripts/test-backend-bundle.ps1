@@ -108,6 +108,45 @@ try {
     foreach ($directory in @('data','projects','logs')) {
         Assert-Check (Test-Path -LiteralPath (Join-Path $runtimeData $directory)) "The $directory storage directory was initialized."
     }
+    $databasePath = Join-Path $runtimeData 'data\visionstudio.db'
+    Assert-Check (Test-Path -LiteralPath $databasePath) 'The workspace database was created on first start.'
+    Assert-Check ($info.database_path -eq $databasePath) 'System information reports the workspace database.'
+    Assert-Check ($info.database_schema_version -ge 1) 'The workspace database reports a schema version.'
+    $projectBody = @{ name = "Bundle QA $([Guid]::NewGuid().ToString('N').Substring(0, 8))" } | ConvertTo-Json -Compress
+    $created = Invoke-RestMethod "$baseUrl/projects" -Method Post -ContentType 'application/json' -Body $projectBody -TimeoutSec 5
+    Assert-Check ($created.id.Length -gt 0 -and $created.task_type -eq 'object_detection') 'The packaged backend creates a project.'
+    $projectFolder = Join-Path $runtimeData "projects\$($created.id)"
+    foreach ($directory in @('dataset','models','runs','events')) {
+        Assert-Check (Test-Path -LiteralPath (Join-Path $projectFolder $directory)) "The project $directory folder was created."
+    }
+    $qaImages = Join-Path $PSScriptRoot 'qa-images'
+    if (-not (Test-Path -LiteralPath $qaImages)) { $qaImages = Join-Path (Split-Path $PSScriptRoot -Parent) 'tests\fixtures\images' }
+    foreach ($name in @('sample.jpg', 'sample.jpeg', 'sample.png', 'sample.webp')) {
+        $fixture = Join-Path $qaImages $name
+        $imported = Invoke-RestMethod "$baseUrl/projects/$($created.id)/datasets/images?filename=$name" -Method Post -ContentType 'application/octet-stream' -InFile $fixture -TimeoutSec 10
+        Assert-Check ($imported.status -eq 'imported') "The packaged backend imports $name."
+        $thumbnail = Invoke-WebRequest ($baseUrl + $imported.image.thumbnail_url) -UseBasicParsing -TimeoutSec 5
+        Assert-Check ($thumbnail.StatusCode -eq 200 -and $thumbnail.Headers['Content-Type'] -eq 'image/jpeg') "The packaged backend serves the $name thumbnail."
+        $original = Join-Path $projectFolder ('dataset\images\' + $imported.image.id + [IO.Path]::GetExtension($name))
+        Assert-Check ((Get-FileHash -LiteralPath $fixture).Hash -eq (Get-FileHash -LiteralPath $original).Hash) "The imported $name preserves the original bytes."
+    }
+    Assert-Check ((Invoke-RestMethod "$baseUrl/projects/$($created.id)/datasets/summary").image_count -eq 4) 'The database records all four image formats.'
+    $gallery = Invoke-RestMethod "$baseUrl/projects/$($created.id)/datasets/images?limit=2"
+    Assert-Check ($gallery.total -eq 4 -and $gallery.images.Count -eq 2) 'The packaged gallery returns a bounded page.'
+    Assert-Check ($gallery.images[0].width -eq 640 -and $gallery.images[0].height -eq 320 -and $gallery.images[0].annotated -eq $false) 'Gallery dimensions and annotation status are available.'
+    $previewFile = Join-Path $qaRoot 'original-preview.jpg'
+    Invoke-WebRequest ($baseUrl + $gallery.images[0].original_url) -UseBasicParsing -OutFile $previewFile -TimeoutSec 5
+    Assert-Check ((Get-FileHash -LiteralPath $previewFile).Hash -eq (Get-FileHash -LiteralPath (Join-Path $qaImages 'sample.jpg')).Hash) 'The gallery serves unchanged original image bytes.'
+    $null = Invoke-RestMethod "$baseUrl/projects/$($created.id)/datasets/images/$($gallery.images[0].id)" -Method Delete -TimeoutSec 5
+    Assert-Check ((Invoke-RestMethod "$baseUrl/projects/$($created.id)/datasets/summary").image_count -eq 3) 'Deleting an image updates the persisted gallery count.'
+    Assert-Check (-not (Test-Path -LiteralPath (Join-Path $projectFolder ('dataset\images\' + $gallery.images[0].id + '.jpg')))) 'Deleting an image removes its original file.'
+    Assert-Check (-not (Test-Path -LiteralPath (Join-Path $projectFolder ('dataset\thumbnails\' + $gallery.images[0].id + '.jpg')))) 'Deleting an image removes its thumbnail.'
+    Assert-Check ((Invoke-RestMethod "$baseUrl/projects" -TimeoutSec 5).total -eq 1) 'The packaged backend lists the created project.'
+    $renamed = Invoke-RestMethod "$baseUrl/projects/$($created.id)" -Method Patch -ContentType 'application/json' -Body '{"name":"Renamed bundle project"}' -TimeoutSec 5
+    Assert-Check ($renamed.name -eq 'Renamed bundle project') 'The packaged backend renames a project.'
+    $null = Invoke-RestMethod "$baseUrl/projects/$($created.id)" -Method Delete -TimeoutSec 5
+    Assert-Check (-not (Test-Path -LiteralPath $projectFolder)) 'Deleting a project removes its storage folder.'
+    $report['database_path'] = $databasePath
     $backendProcess.Refresh()
     $pythonModules = @($backendProcess.Modules | Where-Object { $_.ModuleName -match '^python3.*\.dll$' } | Select-Object -ExpandProperty FileName)
     Assert-Check ($pythonModules.Count -ge 1) 'The running executable has loaded a Python runtime DLL.'
@@ -131,6 +170,7 @@ try {
     Assert-Check ($invalid.Process.WaitForExit(10000)) 'Invalid command-line arguments terminate promptly.'
     Assert-Check ($invalid.Process.ExitCode -eq 2 -and $invalid.Stderr.Result.Contains('Port must be between 1 and 65535.')) 'Invalid ports return an English validation error.'
 
+    $persisted = Invoke-RestMethod "$baseUrl/projects" -Method Post -ContentType 'application/json' -Body '{"name":"Restart persistence check"}' -TimeoutSec 5
     $backendProcess.StandardInput.Close()
     Assert-Check ($backendProcess.WaitForExit(10000)) 'Closing the lifetime pipe stops the executable.'
     Assert-Check ($backendProcess.ExitCode -eq 0) 'The executable shuts down successfully.'
@@ -146,6 +186,9 @@ try {
         catch { Start-Sleep -Milliseconds 150 }
     }
     Assert-Check $standaloneReady 'Standalone mode starts without a desktop or open input pipe.'
+    $reopened = Invoke-RestMethod "$baseUrl/projects/$($persisted.id)" -TimeoutSec 5
+    Assert-Check ($reopened.name -eq 'Restart persistence check') 'Project data persists across executable restarts.'
+    $null = Invoke-RestMethod "$baseUrl/projects/$($persisted.id)" -Method Delete -TimeoutSec 5
     $bindings = @(Get-NetTCPConnection -State Listen -OwningProcess $standalone.Process.Id -ErrorAction Stop)
     Assert-Check ($bindings.Count -eq 1 -and $bindings[0].LocalAddress -eq '127.0.0.1') 'The executable listens on loopback only.'
     $standalone.Process.Kill()

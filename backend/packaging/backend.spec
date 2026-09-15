@@ -11,6 +11,8 @@ a = Analysis(
     datas=[],
     hiddenimports=[
         "app.main",
+        # Declared explicitly because it carries a binary extension and a DLL.
+        "sqlite3",
         "uvicorn.logging",
         "uvicorn.loops.asyncio",
         "uvicorn.protocols.http.h11_impl",

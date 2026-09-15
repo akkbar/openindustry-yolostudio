@@ -10,8 +10,9 @@ test('connects to the real backend and stays English with an Indonesian browser 
   await page.getByRole('button', { name: 'View system details' }).click();
   await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
   await expect(page.getByText('English', { exact: true })).toBeVisible();
-  await expect(page.locator('.storage-path')).not.toHaveText('Waiting for backend');
-  await page.getByRole('button', { name: 'Projects', exact: true }).click();
+  await expect(page.locator('.storage-path:not(.database-path)')).not.toHaveText('Waiting for backend');
+  await expect(page.locator('.database-path')).toContainText('visionstudio.db');
+  await page.getByRole('button', { name: 'Models', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'This workspace is taking shape.' })).toBeVisible();
   await page.getByRole('button', { name: 'Back to dashboard' }).click();
   await expect(page.getByRole('heading', { name: 'Workspace overview' })).toBeVisible();

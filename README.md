@@ -1,12 +1,17 @@
+Progress: 15%
+Target: YOLO Desktop, Open Industrial YOLO Vision Studio, Run in Windows
+About: a Platform to create YOLO model then use your connected camera (USB, RTSP, laptop etc) to run it, then post the result into industrial protocol such as OPC UA, Modbus, MC Protocol, Profinet
+
+#========================Line below updated by AI=====================
 # Vision Studio
 
-Industrial computer vision applications, from dataset to production, without writing Python. **Implemented through Phase 4: bundled desktop, offline NSIS installer, and English application shell. Clean-Windows and elevated installation acceptance remain pending.**
+Industrial computer vision applications, from dataset to production, without writing Python. **Implemented through Phase 9: bundled desktop, offline NSIS installer, local SQLite database, projects, image import, and a dataset gallery with original previews and confirmed deletion. Clean-Windows and elevated installation acceptance remain pending.**
 
 The application always uses **English**, including errors and default content. User-entered data is preserved as entered. The source planning documents retain their original language.
 
 ## Planning
 
-Read [the comparison and decisions](docs/plan-comparison.md) first. `phase-plan.md` controls execution order; `step.md` supplies feature task details; `Overall-plan.md` defines product direction. See [Phase 0 verification](docs/phase-0.md), [Phase 1 packaging evidence](docs/phase-1.md), and [Phases 2–4 delivery and acceptance](docs/phases-2-4.md). The user authorized continuation through Phase 4 while the unavailable clean-Windows gate stays pending. Phase 5 has not started.
+Read [the comparison and decisions](docs/plan-comparison.md) first. `phase-plan.md` controls execution order; `step.md` supplies feature task details; `Overall-plan.md` defines product direction. See [Phase 0 verification](docs/phase-0.md), [Phase 1 packaging evidence](docs/phase-1.md), [Phases 2–4 delivery and acceptance](docs/phases-2-4.md), [Phases 5–7 database and projects](docs/phases-5-7.md), [Phase 8 image import](docs/phase-8.md), and [Phase 9 dataset gallery](docs/phase-9.md). The user authorized continuation while the unavailable clean-Windows gate stays pending. Phase 10 class manager has not started.
 
 ## Run the packaged application
 
@@ -55,7 +60,7 @@ npm run build:desktop
 npm run test:desktop
 ```
 
-Stop browser development servers before running E2E tests; tests own ports 1420 and 8765. E2E tests connect to the real API, exercise failure/recovery, and verify English UI under an Indonesian browser locale.
+Stop browser development servers before running E2E tests; tests own ports 1420 and 8765. E2E tests connect to the real API, exercise failure/recovery, and verify English UI under an Indonesian browser locale. They run the backend against a per-run temporary data directory, so they never modify your own projects.
 
 `build:desktop` builds the backend and frontend, compiles a packaged debug desktop, and stages `artifacts/desktop-debug/VisionStudio.exe` with its runtime resources. Unlike `npm run dev`, packaged debug and release builds always launch the bundled backend; they never fall back to development Python.
 
@@ -116,10 +121,24 @@ docs/         Planning decisions and phase evidence
 tests/        Browser integration tests
 ```
 
-Runtime storage defaults to `%LOCALAPPDATA%\VisionStudio\`, with `data`, `projects`, `logs`, and `webview` directories. Backend logs rotate under `logs/backend.log`; WebView2 keeps its cache in `webview`. No runtime files are written into the installation directory.
+Runtime storage defaults to `%LOCALAPPDATA%\VisionStudio\`, with `data`, `projects`, `logs`, and `webview` directories. The workspace database is `data/visionstudio.db`; each project owns `projects/{project-id}/` with `dataset`, `models`, `runs`, and `events` subfolders. Backend logs rotate under `logs/backend.log`; WebView2 keeps its cache in `webview`. No runtime files are written into the installation directory.
 
 `test:desktop` starts the built desktop app, inspects its actual WebView2, checks backend connectivity, closes the window through Tauri, and verifies that the API stops. It enables a local debug port only for that test process; normal launches do not enable remote debugging. Desktop shutdown closes a lifetime pipe so both the Windows Python redirector and its backend process exit.
 
-The API exposes `GET /health`, `GET /system/info`, and OpenAPI documentation at `/docs`. It binds to `127.0.0.1` only. Through Phase 4 there is no database, AI runtime, model download, project CRUD, or camera access. Navigation for future features displays an explicit planned state.
+The API exposes `GET /health`, `GET /system/info`, project management on `/projects`, and OpenAPI documentation at `/docs`. It binds to `127.0.0.1` only. Failures use one English envelope, `{"error": {"code", "message"}}`.
+
+The workspace database is created on first start using the standard library `sqlite3` module, so no database server is involved. Schema changes are append-only migrations keyed to `PRAGMA user_version`; a database written by a newer application version is refused rather than downgraded. Phase 8 uses Pillow 12.3.0 for image validation and thumbnails. AI runtime, model download, annotation, and camera access remain planned.
+
+## Import images
+
+Open a project, or choose one on the Dataset page. Use **Select images** or drop multiple JPG/JPEG, PNG, or WEBP files onto the import area. Each still image may be up to 25 MiB and 25 million pixels. Imports show progress, skip identical file contents, and report individual failures with a retry action.
+
+Original bytes are copied into the project's `dataset/images` folder with unique filenames; the original names remain in SQLite. Oriented thumbnails are stored in `dataset/thumbnails`. The latest 20 results are shown after an import, and the saved count persists across reloads.
+
+## Browse the dataset
+
+Use **View dataset gallery** in a project, or choose the project on the Dataset page. Each page displays up to 60 thumbnails with filenames, dimensions, and annotation status. **Previous page** and **Next page** keep browsing bounded for larger datasets. Select a thumbnail to preview the original image; use **Close preview** or Escape to return.
+
+**Delete** asks for confirmation before removing an image and its annotations. Image counts and the gallery refresh after imports and deletions. Locked files are queued for cleanup on the next deletion or application start. Annotation editing begins in later phases; new images initially show **Not annotated**.
 
 Lockfiles: `package-lock.json`, `desktop/Cargo.lock`, `backend/requirements-dev.lock`, and `backend/requirements-build.lock`. The Python locks capture the tested Windows/Python 3.10 environment; regenerate and verify them deliberately when changing the supported Python baseline or dependencies.

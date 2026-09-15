@@ -74,8 +74,69 @@ try {
   }
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await expect(page.getByText('English', { exact: true })).toBeVisible();
-  if (!missingBackend) await expect(page.locator('.storage-path')).toHaveText(environment.VISION_STUDIO_DATA_DIR);
+  if (!missingBackend) await expect(page.locator('.storage-path:not(.database-path)')).toHaveText(environment.VISION_STUDIO_DATA_DIR);
   await expect(page.getByRole('button', { name: 'Open logs folder' })).toBeVisible();
+  if (!missingBackend) {
+    await expect(page.locator('.database-path')).toContainText('visionstudio.db');
+    await page.getByRole('button', { name: 'Projects', exact: true }).click();
+    await page.getByRole('button', { name: 'New project' }).first().click();
+    await page.getByLabel('Project name').fill('Desktop QA project');
+    await page.getByLabel(/Description/).fill('Bundled project persistence');
+    await page.getByRole('button', { name: 'Create project', exact: true }).click();
+    await page.getByRole('button', { name: 'Open Desktop QA project', exact: true }).click();
+    await expect(page.locator('.project-workspace .project-name')).toHaveText('Desktop QA project');
+    const imageFixtures = path.join(root, 'tests/fixtures/images');
+    await page.getByLabel('Images to import').setInputFiles(['sample.jpg', 'sample.jpeg', 'sample.png', 'sample.webp'].map(name => path.join(imageFixtures, name)));
+    await expect(page.getByText('4 imported · 0 duplicates skipped · 0 failed')).toBeVisible({ timeout: 20_000 });
+    await expect.poll(() => page.locator('.import-results img').evaluateAll(images => images.every(image => image.naturalWidth > 0))).toBe(true);
+    // CDP delivers file drag events to the actual WebView2 input handler.
+    await page.locator('.import-dropzone').scrollIntoViewIfNeeded();
+    const dropBounds = await page.locator('.import-dropzone').boundingBox();
+    const drag = await page.context().newCDPSession(page);
+    const dragData = { items: [], files: [path.join(imageFixtures, 'sample.png')], dragOperationsMask: 1 };
+    for (const type of ['dragEnter', 'dragOver', 'drop']) {
+      await drag.send('Input.dispatchDragEvent', { type, x: dropBounds.x + dropBounds.width / 2, y: dropBounds.y + dropBounds.height / 2, data: dragData });
+    }
+    await expect(page.getByText('0 imported · 1 duplicates skipped · 0 failed')).toBeVisible();
+    await drag.detach();
+    const batchDirectory = path.join(testRoot, 'Image fixtures');
+    execFileSync(path.join(root, '.venv/Scripts/python.exe'), [path.join(root, 'scripts/make-image-fixtures.py'), batchDirectory], { windowsHide: true });
+    await page.getByLabel('Images to import').setInputFiles(Array.from({ length: 105 }, (_, index) => path.join(batchDirectory, `frame-${String(index).padStart(3, '0')}.png`)));
+    await expect(page.getByText('105 imported · 0 duplicates skipped · 0 failed')).toBeVisible({ timeout: 45_000 });
+    await expect(page.getByText('109 images in this project')).toBeVisible();
+    await page.getByRole('button', { name: 'View dataset gallery', exact: true }).click();
+    await expect(page.locator('.gallery-card')).toHaveCount(60);
+    await expect(page.getByText('Images 1–60 of 109')).toBeVisible();
+    await page.getByRole('button', { name: 'Next page', exact: true }).click();
+    await expect(page.locator('.gallery-card')).toHaveCount(49);
+    await page.getByRole('button', { name: 'Open image frame-104.png', exact: true }).click();
+    await expect.poll(() => page.locator('.gallery-original').evaluate(image => image.naturalWidth)).toBe(64);
+    await page.getByRole('button', { name: 'Close preview', exact: true }).click();
+    await page.getByRole('button', { name: 'Delete image frame-104.png', exact: true }).click();
+    await page.getByRole('button', { name: 'Delete image', exact: true }).click();
+    await expect(page.locator('.gallery-card')).toHaveCount(48);
+    await expect(page.getByText('108 images in this project')).toBeVisible();
+    await page.reload();
+    await expect(page.getByText('Images 1–60 of 108')).toBeVisible();
+    await page.locator('.gallery-grid').scrollIntoViewIfNeeded();
+    await expect.poll(() => page.locator('.gallery-card img').first().evaluate(image => image.naturalWidth)).toBeGreaterThan(0);
+    await page.screenshot({ path: path.join(root, 'test-results/desktop-gallery.png') });
+    await page.getByRole('button', { name: 'Projects', exact: true }).click();
+    await page.getByRole('button', { name: 'Open Desktop QA project', exact: true }).click();
+    await page.screenshot({ path: path.join(root, 'test-results/desktop-image-import.png'), fullPage: true });
+    await page.reload();
+    await expect(page.locator('.project-workspace .project-name')).toHaveText('Desktop QA project');
+    await expect(page.getByText('108 images in this project')).toBeVisible();
+    await page.getByRole('button', { name: 'Back to projects', exact: true }).click();
+    await page.getByRole('button', { name: 'Rename Desktop QA project', exact: true }).click();
+    await page.getByLabel('Project name').fill('Desktop QA renamed');
+    await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+    await expect(page.locator('.project-card h2')).toHaveText('Desktop QA renamed');
+    await page.screenshot({ path: path.join(root, 'test-results/desktop-projects.png'), fullPage: true });
+    await page.getByRole('button', { name: 'Delete Desktop QA renamed', exact: true }).click();
+    await page.getByRole('button', { name: 'Delete project', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Start your first project.' })).toBeVisible();
+  }
   await page.getByRole('button', { name: 'Dashboard', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Workspace overview' })).toBeVisible();
   await page.evaluate(() => window.scrollTo(0, 0));
@@ -99,7 +160,7 @@ try {
   }, { timeout: 5000 }).toBe(false);
   await writeFile(path.join(testRoot, 'report.json'), JSON.stringify({
     passed: true, checked_at_utc: new Date().toISOString(), executable,
-    missing_backend: missingBackend, parent_crash: crash,
+    missing_backend: missingBackend, parent_crash: crash, project_crud_verified: !missingBackend, image_import_verified: !missingBackend, gallery_verified: !missingBackend,
     clean_machine_verified: false, mode: desktop.mode, backend_url: backendUrl ?? null,
   }, null, 2));
   console.log(`Desktop passed: ${missingBackend ? 'English missing-backend recovery screen' : crash ? 'parent crash and backend cleanup' : 'relocated/installed application, bundled backend, English shell, normal close and cleanup'}.`);

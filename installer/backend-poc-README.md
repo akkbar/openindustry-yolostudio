@@ -1,4 +1,4 @@
-# Vision Studio Backend - Phase 1 proof of concept
+# Vision Studio Backend - standalone QA package
 
 This package contains the local API and its bundled Python runtime for Windows x64. Keep `backend.exe` together with the entire `_internal` directory. Python, Node.js, pip, npm, and CUDA are not required to run this package.
 
@@ -33,4 +33,4 @@ The test copies the bundle to a separate path with spaces, removes development t
 
 The `-RequireNoPython` check rejects detected Python executables and standard Python registry installations. Use it only on a genuinely clean VM; detection checks do not prove that an arbitrary existing machine is pristine. Keep the report with the VM/OS description as acceptance evidence. On a developer PC, omit the switch; the report records that the clean-machine gate is not verified.
 
-`backend-manifest.json` lists bundled file hashes. The adjacent ZIP `.sha256` file identifies the archive. No project, training, or camera functionality is included in this phase.
+`backend-manifest.json` lists bundled file hashes. The adjacent ZIP `.sha256` file identifies the archive. The API includes SQLite, projects, image import, and the gallery through Phase 9. The QA script checks project folders, rename/delete, database persistence, import/thumbnail generation for JPEG, PNG, and WEBP, gallery pagination, original previews, and image deletion using the included `qa-images` fixtures. Training and camera functionality remain planned.

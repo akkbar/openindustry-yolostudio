@@ -29,6 +29,11 @@ assert sys.platform == "win32" and struct.calcsize("P") == 8 and sys.version_inf
     $output = Join-Path $bundleRoot 'backend'
     Copy-Item -LiteralPath 'installer\backend-poc-README.md' -Destination (Join-Path $bundleRoot 'README.md') -Force
     Copy-Item -LiteralPath 'scripts\test-backend-bundle.ps1' -Destination (Join-Path $bundleRoot 'Test-Backend.ps1') -Force
+    $qaImages = Join-Path $bundleRoot 'qa-images'
+    New-Item -ItemType Directory -Path $qaImages -Force | Out-Null
+    foreach ($name in @('sample.jpg', 'sample.jpeg', 'sample.png', 'sample.webp')) {
+        Copy-Item -LiteralPath (Join-Path 'tests\fixtures\images' $name) -Destination (Join-Path $qaImages $name) -Force
+    }
     $files = @(Get-ChildItem -LiteralPath $output -File -Recurse | Sort-Object FullName | ForEach-Object {
         [ordered]@{
             path = $_.FullName.Substring($bundleRoot.Length + 1).Replace('\', '/')
