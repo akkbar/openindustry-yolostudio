@@ -3,5 +3,5 @@
   "identifier": "main-window",
   "description": "Minimal permissions for the local studio window",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", "core:window:allow-close"]
 }

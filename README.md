@@ -1,22 +1,29 @@
 # Vision Studio
 
-Industrial computer vision applications, from dataset to production, without writing Python. This repository currently implements **Phase 0: development foundation**.
+Industrial computer vision applications, from dataset to production, without writing Python. **Implemented through Phase 4: bundled desktop, offline NSIS installer, and English application shell. Clean-Windows and elevated installation acceptance remain pending.**
 
 The application always uses **English**, including errors and default content. User-entered data is preserved as entered. The source planning documents retain their original language.
 
 ## Planning
 
-Read [the comparison and decisions](docs/plan-comparison.md) first. `phase-plan.md` controls execution order; `step.md` supplies feature task details; `Overall-plan.md` defines product direction. See [Phase 0 verification](docs/phase-0.md) for current acceptance evidence. The next phase is the backend executable proof of concept.
+Read [the comparison and decisions](docs/plan-comparison.md) first. `phase-plan.md` controls execution order; `step.md` supplies feature task details; `Overall-plan.md` defines product direction. See [Phase 0 verification](docs/phase-0.md), [Phase 1 packaging evidence](docs/phase-1.md), and [Phases 2–4 delivery and acceptance](docs/phases-2-4.md). The user authorized continuation through Phase 4 while the unavailable clean-Windows gate stays pending. Phase 5 has not started.
+
+## Run the packaged application
+
+Run `artifacts/VisionStudio-Setup.exe` to install for all users in `C:\Program Files\VisionStudio` (administrator access required). It includes the backend, Python runtime, frontend assets, and offline WebView2 installer. End users do not install Python, Node.js, npm, pip, or Rust.
+
+Alternatively, open `artifacts/desktop/VisionStudio.exe` on a Windows x64 computer with WebView2. Keep the whole `desktop` folder together, including `backend/_internal`. The portable folder does not install WebView2; the setup executable does. These are local proof-of-concept artifacts, not a signed production release.
 
 ## Development on Windows
 
-Prerequisites: Node.js 22.12+ (24 supported), Python 3.10+, Rust stable with the Windows MSVC target, Visual Studio C++ build tools and Windows SDK, and Microsoft Edge WebView2. These are developer requirements; the final installer must bundle its runtime dependencies. See [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/).
+Prerequisites: Node.js 22.12+ (24 supported), Python 3.10 (the packaging baseline), Rust 1.98.1 with the Windows MSVC target (pinned in `desktop/rust-toolchain.toml`), Visual Studio C++ build tools and Windows SDK, and Microsoft Edge WebView2. These are developer requirements; the installer bundles its runtime dependencies. See [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/).
 
 From the repository root:
 
 ```powershell
 npm ci
 npm run setup:backend
+npm run build:backend
 npm run dev
 ```
 
@@ -45,18 +52,63 @@ npx playwright install chromium
 npm run test:e2e
 npm run check:desktop
 npm run build:desktop
+npm run test:desktop
 ```
 
 Stop browser development servers before running E2E tests; tests own ports 1420 and 8765. E2E tests connect to the real API, exercise failure/recovery, and verify English UI under an Indonesian browser locale.
 
-`build:desktop` creates `desktop/target/debug/vision-studio.exe` with embedded frontend assets, but still requires this repository and its Python virtual environment. It is a development executable, **not a standalone distribution**. Backend packaging, bundled sidecar readiness/supervision, and NSIS installer proof are Phases 1, 2, and 3.
+`build:desktop` builds the backend and frontend, compiles a packaged debug desktop, and stages `artifacts/desktop-debug/VisionStudio.exe` with its runtime resources. Unlike `npm run dev`, packaged debug and release builds always launch the bundled backend; they never fall back to development Python.
+
+Build and verify the release installer:
+
+```powershell
+npm run build:installer
+npm run test:desktop -- --release
+npm run test:desktop -- --release --missing-backend
+npm run test:desktop -- --release --crash
+npm run test:rust
+```
+
+The build stages `artifacts/desktop/`, `artifacts/VisionStudio-Setup.exe`, and its SHA-256 checksum. WebView2 is downloaded during the initial build and embedded for offline installation. The installer is English-only and preserves runtime data on uninstall.
+
+For local installation tests without administrator access:
+
+```powershell
+npm run build:installer:qa
+npm run test:installer
+```
+
+The distinctly named QA installer packages the existing release payload for the current user. The test installs into a unique QA directory, checks its shortcut and uninstall registration, runs the installed desktop, uninstalls it, and checks data preservation. This does not verify the production installer's elevated path or a clean machine. See the [installer instructions](installer/README.md).
+
+## Backend executable (Phase 1)
+
+Build and test on Windows x64 with Python 3.10 available to the developer:
+
+```powershell
+npm run build:backend
+npm run test:backend-bundle
+```
+
+The build creates a separate environment in `.tools/backend-build`, installs `backend/requirements-build.lock`, freezes the API with PyInstaller, and generates:
+
+```text
+artifacts/backend/backend.exe
+artifacts/backend/_internal/
+artifacts/backend-manifest.json
+artifacts/VisionStudio-Backend-0.1.0-windows-x64.zip
+artifacts/VisionStudio-Backend-0.1.0-windows-x64.zip.sha256
+```
+
+Run `artifacts\backend\backend.exe --port 8765` to serve the API independently of the development virtual environment. Distribute the entire ZIP or backend folder; the executable requires the adjacent `_internal` directory. The ZIP also contains a PowerShell QA script requiring no Python/Node installation. See [the included instructions](installer/backend-poc-README.md) for clean-machine testing.
+
+The local smoke test relocates the bundle, sanitizes its environment, checks loaded runtime DLLs and English API responses, and validates startup, shutdown, and port failures. It keeps JSON evidence and logs under `%LOCALAPPDATA%\VisionStudio\qa`. A passing local test does not close the clean-Windows gate.
 
 ## Repository
 
 ```text
 frontend/     React + TypeScript + Vite; English copy in src/locales/en.ts
 backend/      FastAPI, local storage paths, API tests
-desktop/      Tauri 2, development backend lifecycle
+desktop/      Tauri 2, packaged/development backend lifecycle
 scripts/      Development and verification commands
 installer/    Windows packaging strategy
 data/         Ignored development fixtures only
@@ -64,8 +116,10 @@ docs/         Planning decisions and phase evidence
 tests/        Browser integration tests
 ```
 
-Runtime storage defaults to `%LOCALAPPDATA%\VisionStudio\`, with `data`, `projects`, and `logs` directories. Backend logs rotate under `logs/backend.log`. No runtime files are written into the installation directory.
+Runtime storage defaults to `%LOCALAPPDATA%\VisionStudio\`, with `data`, `projects`, `logs`, and `webview` directories. Backend logs rotate under `logs/backend.log`; WebView2 keeps its cache in `webview`. No runtime files are written into the installation directory.
 
-The API exposes `GET /health`, `GET /system/info`, and development OpenAPI documentation at `/docs`. It binds to `127.0.0.1` only. Phase 0 has no database, AI runtime, model download, project CRUD, or camera access. Navigation for future features displays an explicit planned state.
+`test:desktop` starts the built desktop app, inspects its actual WebView2, checks backend connectivity, closes the window through Tauri, and verifies that the API stops. It enables a local debug port only for that test process; normal launches do not enable remote debugging. Desktop shutdown closes a lifetime pipe so both the Windows Python redirector and its backend process exit.
 
-Lockfiles: `package-lock.json`, `desktop/Cargo.lock`, and `backend/requirements-dev.lock`. The Python lock captures the tested Windows/Python 3.10 environment; regenerate and verify it deliberately when changing the supported Python baseline or dependencies.
+The API exposes `GET /health`, `GET /system/info`, and OpenAPI documentation at `/docs`. It binds to `127.0.0.1` only. Through Phase 4 there is no database, AI runtime, model download, project CRUD, or camera access. Navigation for future features displays an explicit planned state.
+
+Lockfiles: `package-lock.json`, `desktop/Cargo.lock`, `backend/requirements-dev.lock`, and `backend/requirements-build.lock`. The Python locks capture the tested Windows/Python 3.10 environment; regenerate and verify them deliberately when changing the supported Python baseline or dependencies.

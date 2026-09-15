@@ -4,6 +4,7 @@ desktop/target/
 desktop/gen/
 .venv/
 .tools/
+artifacts/
 __pycache__/
 *.py[cod]
 .pytest_cache/

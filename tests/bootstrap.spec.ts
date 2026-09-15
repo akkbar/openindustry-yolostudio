@@ -35,3 +35,26 @@ test('does not report an unrelated service as connected', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('status')).toHaveText('Backend Disconnected');
 });
+
+test('preserves navigation on reload and supports browser history', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Cameras', exact: true }).click();
+  await expect(page).toHaveURL(/#Cameras$/);
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Cameras', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Models', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Models', exact: true })).toBeFocused();
+  await page.goBack();
+  await expect(page.getByRole('heading', { name: 'Cameras', exact: true })).toBeVisible();
+});
+
+test('keeps every workspace reachable at the minimum desktop width', async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 640 });
+  await page.goto('/');
+  for (const name of ['Projects', 'Dataset', 'Models', 'Cameras', 'Runtime', 'Settings']) {
+    await page.getByRole('button', { name, exact: true }).click();
+    await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
+  }
+  await expect(page.getByText('English', { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});

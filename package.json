@@ -6,14 +6,22 @@
   "engines": { "node": ">=22.12.0" },
   "scripts": {
     "setup:backend": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup-backend.ps1",
+    "build:backend": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-backend.ps1",
+    "test:backend-bundle": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-backend-bundle.ps1 -BundlePath artifacts/backend",
     "dev": "node scripts/desktop.mjs dev",
     "dev:frontend": "npm run dev --workspace frontend",
     "dev:backend": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/backend.ps1",
     "build": "npm run build --workspace frontend",
-    "build:desktop": "node scripts/desktop.mjs build --debug --no-bundle",
+    "prepare:desktop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-desktop.ps1",
+    "build:desktop": "node scripts/desktop.mjs build --debug --no-bundle && node scripts/stage-desktop.mjs debug",
+    "build:installer": "node scripts/desktop.mjs build --bundles nsis && node scripts/stage-desktop.mjs release",
+    "build:installer:qa": "node scripts/desktop.mjs bundle --bundles nsis --config ../installer/qa.tauri.conf.json && node scripts/stage-desktop.mjs qa",
+    "test:installer": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-installer.ps1",
     "check:desktop": "node scripts/desktop.mjs check",
+    "test:rust": "node scripts/desktop.mjs test",
     "test:backend": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/backend.ps1 -Test",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:desktop": "node scripts/test-desktop.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.55.0",

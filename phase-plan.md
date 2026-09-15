@@ -62,6 +62,8 @@ Acceptance:
 
 ## Phase 1 — Backend executable proof-of-concept
 
+> Status (2026-09-15): executable and portable QA package implemented; local tests passed. Fresh-Windows/no-Python acceptance remains pending at the user's request because a clean PC/VM is not available. The user subsequently authorized continuation through Phase 4 with this gate still pending. See [Phase 1 evidence](docs/phase-1.md) and [Phases 2–4 evidence](docs/phases-2-4.md).
+
 Ini saya pindahkan sangat awal.
 
 Goal: memastikan Python backend bisa dibundle sebelum project menjadi besar.
@@ -99,6 +101,8 @@ Kalau ini gagal, jangan lanjut fitur lain dulu.
 ---
 
 ## Phase 2 — Desktop executable proof-of-concept
+
+> Status (2026-09-15): implemented and locally verified in packaged debug/release builds. Relocated startup, bundled child process, English missing-backend recovery, normal close, and parent-crash cleanup passed native tests. See [Phases 2–4 evidence](docs/phases-2-4.md).
 
 Goal:
 
@@ -142,6 +146,8 @@ Tanpa terminal.
 
 ## Phase 3 — Installer proof-of-concept
 
+> Status (2026-09-15): production NSIS installer built with offline WebView2 and English-only copy; 17 current-user QA install/launch/uninstall checks passed. See [Phases 2–4 evidence](docs/phases-2-4.md). Elevated per-machine and clean-Windows acceptance remain pending.
+
 Sebelum fitur AI.
 
 Buat:
@@ -175,6 +181,8 @@ Ini penting supaya nanti kita tidak menemukan masalah packaging setelah project 
 ---
 
 # Phase 4 — Base application shell
+
+> Status (2026-09-15): implemented; seven-page navigation, connection status, app version, system information, and Settings are available in English. Browser and native shell tests passed. Later feature pages remain explicitly planned; Phase 5 has not started.
 
 Baru mulai UI produk.
 

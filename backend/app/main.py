@@ -1,5 +1,6 @@
 import os
 import platform
+import sys
 from contextlib import asynccontextmanager
 from typing import Literal
 
@@ -54,9 +55,15 @@ def health():
 
 @app.get("/system/info", response_model=SystemInfoResponse)
 def system_info():
+    release = platform.release()
+    if platform.system() == "Windows":
+        windows = sys.getwindowsversion()
+        # Windows 11 retains NT version 10.0; distinguish workstation builds.
+        if windows.product_type == 1 and windows.build >= 22000:
+            release = "11"
     return SystemInfoResponse(
         os=platform.system(),
-        os_version=platform.release(),
+        os_version=release,
         architecture=platform.machine(),
         cpu=platform.processor() or platform.machine() or "Unknown processor",
         logical_cpu_count=os.cpu_count() or 1,

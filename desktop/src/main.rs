@@ -1,91 +1,126 @@
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![windows_subsystem = "windows"]
 
+mod backend;
+
+use backend::Backend;
+use serde::Serialize;
 use std::{
-    net::TcpListener,
-    path::Path,
-    process::{Child, Command, Stdio},
+    fs::{self, OpenOptions},
+    io::Write,
+    path::PathBuf,
+    process::Command,
     sync::Mutex,
 };
 use tauri::Manager;
 
-struct Backend {
-    child: Mutex<Option<Child>>,
-    url: String,
+struct Studio {
+    backend: Mutex<Backend>,
+    storage: PathBuf,
 }
 
-impl Backend {
-    fn start() -> Result<Self, Box<dyn std::error::Error>> {
-        // Phase 0 uses the repository virtual environment. Phase 2 replaces this
-        // launcher with the packaged sidecar, without changing the frontend API.
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
-        let python = root.join(if cfg!(windows) {
-            ".venv/Scripts/python.exe"
+#[derive(Serialize)]
+struct DesktopInfo {
+    version: &'static str,
+    mode: &'static str,
+    startup_error: Option<String>,
+}
+
+#[tauri::command]
+fn backend_url(studio: tauri::State<'_, Studio>) -> Result<String, String> {
+    studio
+        .backend
+        .lock()
+        .map_err(|_| "Backend state is unavailable.")?
+        .url()
+}
+
+#[tauri::command]
+fn desktop_info(studio: tauri::State<'_, Studio>) -> DesktopInfo {
+    DesktopInfo {
+        version: env!("CARGO_PKG_VERSION"),
+        mode: if !cfg!(dev) {
+            "packaged"
         } else {
-            ".venv/bin/python"
-        });
-        if !python.is_file() {
-            return Err("Backend environment is missing. Run npm run setup:backend first.".into());
-        }
-        let listener = TcpListener::bind("127.0.0.1:0")?;
-        let port = listener.local_addr()?.port();
-        let mut command = Command::new(python);
-        command
-            .args(["-m", "app", "--port", &port.to_string()])
-            .current_dir(root.join("backend"))
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null());
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt;
-            command.creation_flags(0x08000000); // CREATE_NO_WINDOW
-        }
-        drop(listener);
-        let child = command.spawn()?;
-        Ok(Self {
-            child: Mutex::new(Some(child)),
-            url: format!("http://127.0.0.1:{port}"),
-        })
-    }
-
-    fn stop(&self) {
-        if let Ok(mut guard) = self.child.lock() {
-            if let Some(mut child) = guard.take() {
-                let _ = child.kill();
-                let _ = child.wait();
-            }
-        }
-    }
-}
-
-impl Drop for Backend {
-    fn drop(&mut self) {
-        self.stop();
+            "development"
+        },
+        startup_error: studio
+            .backend
+            .lock()
+            .ok()
+            .and_then(|backend| backend.error.clone()),
     }
 }
 
 #[tauri::command]
-fn backend_url(backend: tauri::State<'_, Backend>) -> Result<String, String> {
-    let mut guard = backend.child.lock().map_err(|_| "Backend state is unavailable.")?;
-    let child = guard.as_mut().ok_or("Backend has stopped.")?;
-    match child.try_wait() {
-        Ok(None) => Ok(backend.url.clone()),
-        _ => Err("Backend could not start. Check the backend log and restart Vision Studio.".into()),
-    }
+fn open_app_folder(kind: &str, studio: tauri::State<'_, Studio>) -> Result<(), String> {
+    let folder = match kind {
+        "data" => studio.storage.clone(),
+        "logs" => studio.storage.join("logs"),
+        _ => return Err("Unknown application folder.".into()),
+    };
+    Command::new("explorer.exe")
+        .arg(folder)
+        .spawn()
+        .map_err(|_| "The application folder could not be opened.")?;
+    Ok(())
 }
 
 fn main() {
     let app = tauri::Builder::default()
         .setup(|app| {
-            app.manage(Backend::start()?);
+            let storage = match std::env::var_os("VISION_STUDIO_DATA_DIR") {
+                Some(value) => {
+                    let path = PathBuf::from(value);
+                    if !path.is_absolute() {
+                        return Err("VISION_STUDIO_DATA_DIR must be an absolute path.".into());
+                    }
+                    path
+                }
+                None => app.path().local_data_dir()?.join("VisionStudio"),
+            };
+            fs::create_dir_all(storage.join("logs"))?;
+            let log_path = storage.join("logs/desktop.log");
+            if fs::metadata(&log_path)
+                .map(|m| m.len() > 2_000_000)
+                .unwrap_or(false)
+            {
+                let _ = fs::copy(&log_path, storage.join("logs/desktop.previous.log"));
+                let _ = fs::write(&log_path, "");
+            }
+            let mut log = OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(log_path)?;
+            writeln!(log, "Starting Vision Studio {}", env!("CARGO_PKG_VERSION"))?;
+            let backend =
+                Backend::start(app.path().resource_dir()?, &storage).unwrap_or_else(|error| {
+                    let _ = writeln!(log, "Backend startup failed: {error}");
+                    Backend::failed(error)
+                });
+            if backend.error.is_none() {
+                writeln!(log, "Backend ready. Opening the application window.")?;
+            }
+            app.manage(Studio {
+                backend: Mutex::new(backend),
+                storage: storage.clone(),
+            });
+            tauri::WebviewWindowBuilder::from_config(app, &app.config().app.windows[0])?
+                .data_directory(storage.join("webview"))
+                .build()?;
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![backend_url])
+        .invoke_handler(tauri::generate_handler![
+            backend_url,
+            desktop_info,
+            open_app_folder
+        ])
         .build(tauri::generate_context!())
         .expect("Vision Studio could not start.");
     app.run(|app, event| {
         if matches!(event, tauri::RunEvent::Exit) {
-            app.state::<Backend>().stop();
+            if let Ok(mut backend) = app.state::<Studio>().backend.lock() {
+                backend.stop();
+            }
         }
     });
 }

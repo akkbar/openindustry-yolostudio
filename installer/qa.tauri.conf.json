@@ -1,0 +1,9 @@
+{
+  "productName": "Vision Studio QA",
+  "identifier": "com.openaiot.visionstudio.qa",
+  "bundle": {
+    "windows": {
+      "nsis": { "installMode": "currentUser", "installerHooks": "../installer/qa-hooks.nsh" }
+    }
+  }
+}

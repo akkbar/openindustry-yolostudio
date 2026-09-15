@@ -1,19 +1,32 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Vision Studio",
+  "productName": "VisionStudio",
+  "mainBinaryName": "VisionStudio",
   "version": "0.1.0",
   "identifier": "com.openaiot.visionstudio",
   "build": {
-    "beforeDevCommand": { "script": "npm run dev:frontend", "cwd": ".." },
+    "beforeDevCommand": { "script": "node ../node_modules/vite/bin/vite.js", "cwd": "../frontend" },
     "devUrl": "http://127.0.0.1:1420",
-    "beforeBuildCommand": { "script": "npm run build", "cwd": ".." },
+    "beforeBuildCommand": { "script": "npm run prepare:desktop", "cwd": ".." },
     "frontendDist": "../frontend/dist"
   },
   "app": {
-    "windows": [{ "title": "Vision Studio", "width": 1280, "height": 840, "minWidth": 900, "minHeight": 640 }],
+    "windows": [{ "label": "main", "create": false, "title": "Vision Studio", "width": 1280, "height": 840, "minWidth": 900, "minHeight": 640 }],
     "security": {
       "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost http://127.0.0.1:*; object-src 'none'; frame-src 'none'"
     }
   },
-  "bundle": { "active": false, "targets": ["nsis"], "icon": ["icons/icon.ico"] }
+  "bundle": {
+    "active": true, "targets": ["nsis"], "publisher": "OpenAIoT",
+    "shortDescription": "Industrial computer vision studio",
+    "icon": ["icons/icon.ico"],
+    "resources": { "../artifacts/backend/": "backend/" },
+    "windows": {
+      "webviewInstallMode": { "type": "offlineInstaller", "silent": true },
+      "nsis": {
+        "installMode": "perMachine", "languages": ["English"],
+        "displayLanguageSelector": false, "installerHooks": "../installer/hooks.nsh"
+      }
+    }
+  }
 }

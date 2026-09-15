@@ -1,4 +1,7 @@
+import { version } from '../../package.json';
+
 export const APP_LOCALE = 'en-US';
+export const APP_VERSION = version;
 
 export const en = {
   brand: 'Vision Studio',
@@ -52,7 +55,26 @@ export const en = {
   futureDetail: 'This feature is planned for a later phase. Start with the dashboard to check your local environment.',
   back: 'Back to dashboard',
   devBuild: 'Development build',
-  versionLabel: 'v0.1.0',
+  packagedBuild: 'Desktop preview',
+  browserBuild: 'Browser preview',
+  buildType: 'Application mode',
+  openData: 'Open data folder',
+  openLogs: 'Open logs folder',
+  folderError: 'The application folder could not be opened.',
+  skipNavigation: 'Skip to main content',
+  crashTitle: 'The workspace could not be displayed.',
+  crashDetail: 'Reload the application to recover your workspace.',
+  reload: 'Reload application',
+  apiFailure: 'The local API request failed.',
+  serviceMismatch: 'The local service is not a Vision Studio backend.',
+  invalidSystem: 'The local API returned invalid system information.',
+  pageDetails: {
+    Projects: 'Organize each vision application in its own project. Project creation and management are coming next.',
+    Dataset: 'Import images, organize classes, and annotate objects in your project datasets.',
+    Models: 'Train, compare, and manage the models used by your vision applications.',
+    Cameras: 'Connect USB and network cameras, then check their live previews.',
+    Runtime: 'Run your vision applications and monitor detections, counters, and events.',
+  },
   ready: 'Local API available',
   setup: 'Workspace setup',
 } as const;

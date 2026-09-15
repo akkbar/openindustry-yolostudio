@@ -1,4 +1,5 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -41,3 +42,13 @@ def test_relative_data_override_rejected(monkeypatch):
     monkeypatch.setenv("VISION_STUDIO_DATA_DIR", "data")
     with pytest.raises(ValueError, match="absolute path"):
         data_root()
+
+
+@pytest.mark.parametrize("build,product_type,release,expected", [
+    (19045, 1, "10", "10"), (26200, 1, "10", "11"), (26100, 3, "2025Server", "2025Server"),
+])
+def test_windows_display_version(client, monkeypatch, build, product_type, release, expected):
+    monkeypatch.setattr("app.main.platform.system", lambda: "Windows")
+    monkeypatch.setattr("app.main.platform.release", lambda: release)
+    monkeypatch.setattr("app.main.sys.getwindowsversion", lambda: SimpleNamespace(build=build, product_type=product_type), raising=False)
+    assert client.get("/system/info").json()["os_version"] == expected
