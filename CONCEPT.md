@@ -1,15 +1,12 @@
-Progress: 15%
-Target: YOLO Desktop, Open Industrial YOLO Vision Studio, Run in Windows
-About: a Platform to create YOLO model then use your connected camera (USB, RTSP, laptop etc) to run it, then post the result into industrial protocol such as OPC UA, Modbus, MC Protocol, Profinet
+# OpenIndustry Vision Studio — Technical Concept & Specifications
 
-#========================Line below updated by AI=====================
-# OpenIndustry Vision Studio
+> **Scope**: Architectural specifications, packaging constraints, internal data models, and component lifecycles for OpenIndustry Vision Studio.
 
 Industrial computer vision applications, from dataset to production, without writing Python. **Implemented through Phase 34: bundled desktop, offline NSIS installer, projects, image import, dataset gallery, classes, a bounding-box annotation editor, validated YOLO dataset export, a bundled CPU YOLO runtime, a verified YOLO11 Nano base checkpoint, durable training jobs, a separate CPU training worker, polling progress metrics, a project model registry with production selection, USB-camera discovery, local JPEG preview, CPU live inference, detection overlays, a full standalone packaging checkpoint, a metadata-driven pretrained model library with shared COCO presets, ByteTrack-style local tracking, persisted counting lines, live crossing counters, polygon ROI filtering, line-cross events with JPEG snapshots, and reconnecting RTSP camera preview. Clean-Windows and elevated installation acceptance remain pending.**
 
 The application always uses **English**, including errors and default content. User-entered data is preserved as entered. The source planning documents retain their original language.
 
-## Planning
+## Planning Authority
 
 Read [the comparison and decisions](docs/plan-comparison.md) first. `phase-plan.md` controls execution order; `step.md` supplies feature task details; `Overall-plan.md` defines product direction. See [Phase 0 verification](docs/phase-0.md), [Phase 1 packaging evidence](docs/phase-1.md), [Phases 2–4 delivery and acceptance](docs/phases-2-4.md), [Phases 5–7 database and projects](docs/phases-5-7.md), [Phase 8 image import](docs/phase-8.md), [Phase 9 dataset gallery](docs/phase-9.md), [Phase 10 class manager](docs/phase-10.md), [Phases 11–12 annotations](docs/phases-11-12.md), [Phases 13 and 14 export and validation](docs/phases-13-14.md), and [Phase 15 runtime packaging](docs/phase-15.md). The user authorized continuation while the unavailable clean-Windows gate stays pending.
 
@@ -25,7 +22,7 @@ See [Phase 20 training progress](docs/phase-20.md), [Phase 21 model registry](do
 
 See [Phase 23 camera preview](docs/phase-23.md), [Phase 24 live inference](docs/phase-24.md), [Phase 25 detection overlay](docs/phase-25.md), and [Phase 26 standalone checkpoint](docs/phase-26.md) for the local camera-to-detection path and packaging verification.
 
-See [Phases 27�31 tracking, counting, and ROI](docs/phases-27-31.md) for the first local counting workflow. Before continuing with later feature phases, [the Apple detector demo dataset](docs/apple-detector-demo.md) provides one complete, publicly licensed dataset for exercising the existing workflow end to end. [The model catalog](docs/model-catalog.md) documents the shared built-in presets, specialist model metadata, storage, and inference selection.
+See [Phases 27–31 tracking, counting, and ROI](docs/phases-27-31.md) for the first local counting workflow. Before continuing with later feature phases, [the Apple detector demo dataset](docs/apple-detector-demo.md) provides one complete, publicly licensed dataset for exercising the existing workflow end to end. [The model catalog](docs/model-catalog.md) documents the shared built-in presets, specialist model metadata, storage, and inference selection.
 
 ## Run the packaged application
 

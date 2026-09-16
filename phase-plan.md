@@ -1,12 +1,12 @@
+# OpenIndustry Vision Studio — Master Phase Execution Plan
+
 > Planning authority: `phase-plan.md` defines execution order; `step.md` provides detailed tasks; `Overall-plan.md` defines product vision. See [comparison and decisions](docs/plan-comparison.md) and [Phase 0 status](docs/phase-0.md). All application-owned text must always be English.
 
-Bisa. Karena sekarang requirement deployment sudah jelas, plan-nya perlu direvisi supaya dari awal memang mengarah ke **Windows executable yang self-contained**.
+Target utama implementasi:
 
-Saya akan jadikan target utamanya:
+> **User install Vision Studio di Windows, tanpa perlu install Python, Node.js, npm, pip, CUDA toolkit, atau dependency development lain (100% self-contained Windows executable).**
 
-> **User install Vision Studio di Windows, tanpa perlu install Python, Node.js, npm, pip, CUDA toolkit, atau dependency development lain.**
-
-Urutan eksekusinya saya sarankan seperti ini.
+Urutan eksekusi fase pembangunan dirancang secara bertahap dan terverifikasi sebagai berikut:
 
 ## Phase 0 — Lock architecture dan packaging strategy
 
@@ -52,11 +52,11 @@ Acceptance:
 * backend jalan
 * Tauri membuka frontend
 
-**Codex task 0.1:** bootstrap repo saja.
+**Task 0.1:** bootstrap repo saja.
 
-**Codex task 0.2:** tambahkan FastAPI `/health`.
+**Task 0.2:** tambahkan FastAPI `/health`.
 
-**Codex task 0.3:** Tauri start backend process saat app dibuka.
+**Task 0.3:** Tauri start backend process saat app dibuka.
 
 ---
 
@@ -64,7 +64,7 @@ Acceptance:
 
 > Status (2026-09-15): executable and portable QA package implemented; local tests passed. Fresh-Windows/no-Python acceptance remains pending at the user's request because a clean PC/VM is not available. The user subsequently authorized continuation through Phase 4 with this gate still pending. See [Phase 1 evidence](docs/phase-1.md) and [Phases 2–4 evidence](docs/phases-2-4.md).
 
-Ini saya pindahkan sangat awal.
+Fase ini diposisikan sangat awal untuk memastikan kemampuan packaging backend sebelum project menjadi besar.
 
 Goal: memastikan Python backend bisa dibundle sebelum project menjadi besar.
 
@@ -176,7 +176,7 @@ Acceptance:
 * app jalan
 * no dependency external
 
-Ini penting supaya nanti kita tidak menemukan masalah packaging setelah project sudah besar.
+Checkpoint ini penting agar isu packaging terdeteksi sejak dini sebelum kompleksitas project bertambah.
 
 ---
 
@@ -1277,7 +1277,7 @@ Alarm → Coil 1
 
 # Phase 46 — OPC UA
 
-Untuk awal saya sarankan Vision Studio sebagai OPC UA server.
+Pada implementasi awal, Vision Studio bertindak sebagai OPC UA server.
 
 Expose:
 
@@ -1595,9 +1595,9 @@ Selesai.
 
 ---
 
-## Cara saya akan eksekusi dengan Codex
+## Panduan Eksekusi Tugas & Checkpoint Packaging
 
-Saya sarankan jangan kasih satu phase sebagai satu prompt kalau phase-nya masih besar.
+Untuk eksekusi pengembangan, setiap fase berukuran besar dipecah ke dalam unit tugas terstruktur:
 
 Gunakan unit:
 
@@ -1617,7 +1617,7 @@ P11-S04 move bbox
 P11-S05 resize bbox
 ```
 
-Setiap Codex task wajib punya:
+Setiap task unit wajib mendefinisikan:
 
 ```text
 GOAL
@@ -1635,9 +1635,9 @@ ACCEPTANCE CRITERIA
 TEST COMMANDS
 ```
 
-Dan hal yang sekarang paling penting: **buat packaging checkpoint berkala**, bukan hanya sekali di akhir.
+Prinsip krusial arsitektur: **buat packaging checkpoint berkala**, bukan hanya sekali di akhir.
 
-Saya akan checkpoint pada:
+Packaging checkpoint berkala dilaksanakan pada:
 
 ```text
 Phase 3
@@ -1659,6 +1659,6 @@ Final
 Production installer
 ```
 
-Dengan begitu, kalau ada library yang ternyata tidak bisa dibundle dengan baik di Windows, ketahuan **lebih awal**, bukan setelah 2–3 bulan coding.
+Pendekatan ini memastikan kompatibilitas bundling Windows terverifikasi di setiap milestone utama.
 
-Kalau kamu ingin menjalankannya langsung di Codex, urutan paling masuk akal untuk sekarang adalah mulai dari **Phase 0 → Phase 3 dulu**, sampai kita benar-benar punya `VisionStudio-Setup.exe` kosong yang sudah membawa React + Tauri + FastAPI backend secara self-contained. Setelah fondasi deployment itu beres, baru masuk Project/Dataset/Annotator.
+Urutan eksekusi dimulai dari **Phase 0 → Phase 3**, memastikan tersedianya `VisionStudio-Setup.exe` yang membawa stack lengkap (React + Tauri + FastAPI backend) secara self-contained sebelum memasuki implementasi fitur Project, Dataset, dan Annotator.

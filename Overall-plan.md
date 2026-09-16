@@ -1,8 +1,10 @@
+# OpenIndustry Vision Studio — Overall Product Vision & Architecture Plan
+
 > Planning authority: `phase-plan.md` defines execution order; `step.md` provides detailed tasks; `Overall-plan.md` defines product vision. See [comparison and decisions](docs/plan-comparison.md) and [Phase 0 status](docs/phase-0.md). All application-owned text must always be English.
 
-Bisa. Saya akan arahkan produknya bukan sebagai **“YOLO Desktop”**, tapi sebagai **Vision Studio / Industrial Vision Builder** yang bisa dipakai operator atau engineer tanpa harus coding Python.
+Visi produk ini memposisikan aplikasi bukan sekadar "YOLO Desktop", melainkan sebagai **Vision Studio / Industrial Vision Builder** yang dapat digunakan oleh operator pabrik atau automation engineer tanpa harus menulis kode Python.
 
-Secara besar, produk akhirnya seperti ini:
+Alur komprehensif produk akhir:
 
 ```text
 Dataset
@@ -61,7 +63,7 @@ training script
 
 # 2. Positioning
 
-Saya akan bagi menjadi 3 layer produk:
+Arsitektur produk terbagi ke dalam 3 layer utama:
 
 ```text
 VISION STUDIO
@@ -94,7 +96,7 @@ Ini lebih kuat daripada sekadar:
 
 # 3. Tech stack
 
-Karena kamu sudah menggunakan FastAPI dan React, saya sarankan tetap di stack itu.
+Pilihan teknologi inti berbasis FastAPI dan React:
 
 ```text
 Desktop UI
@@ -169,7 +171,7 @@ Arsitekturnya:
 
 # 4. Main navigation
 
-Saya sarankan UI utamanya:
+Struktur navigasi UI utama:
 
 ```text
 Dashboard
@@ -341,7 +343,7 @@ Add Data
 
 # 8. Video → dataset
 
-Ini menurut saya wajib.
+Fitur ekstraksi frame dari video merupakan kapabilitas penting untuk pengumpulan dataset industri:
 
 User bisa:
 
@@ -814,7 +816,7 @@ Supaya GPU tidak perlu proses semua frame.
 
 # 24. Vision Builder
 
-Ini menurut saya harus menjadi **killer feature**.
+Vision Builder merupakan fitur unggulan utama (*killer feature*) untuk merangkai logika inspeksi visual secara visual:
 
 UI drag-and-drop:
 
@@ -858,7 +860,7 @@ UI drag-and-drop:
 
 # 25. Node categories
 
-Saya akan buat nodes:
+Kategori nodes pada visual pipeline builder:
 
 ```text
 SOURCE
@@ -1296,7 +1298,7 @@ User bisa memilih:
 
 # 41. Runtime modes
 
-Saya akan buat 3 mode:
+Sistem operasi runtime terbagi menjadi 3 mode kerja:
 
 ```text
 Studio Mode
@@ -1704,7 +1706,7 @@ bisa trigger inference.
 
 # 58. Database
 
-Saya sarankan:
+Standar database untuk desktop standalone:
 
 ```text
 SQLite
@@ -1767,7 +1769,7 @@ vision-studio/
 
 # 60. Backend module structure
 
-Saya akan buat:
+Struktur modul backend dirancang modular:
 
 ```text
 backend/
@@ -1858,7 +1860,7 @@ Gunakan:
 
 # 63. Frame streaming
 
-Saya tidak sarankan kirim 30 FPS raw lewat JSON.
+Pengiriman frame video berkecepatan tinggi (30 FPS) tidak menggunakan raw JSON, melainkan stream terkompresi:
 
 Gunakan:
 
@@ -2014,7 +2016,7 @@ Rollback to V3
 
 # 70. Licensing
 
-Karena sebelumnya kamu sudah punya host installer/license manager, Vision Studio bisa masuk ke situ.
+Integrasi lisensi pada platform deployment host:
 
 ```text
 License
@@ -2058,7 +2060,7 @@ Multiple runtime workers
 
 # 71. Host integration
 
-Arsitektur dengan platform kamu:
+Arsitektur integrasi dengan platform host:
 
 ```text
 Host Manager
@@ -2083,7 +2085,7 @@ Camera 3 connected
 
 # 72. OpenAIoT integration
 
-Saya akan posisikan:
+Posisi Vision Studio dalam ekosistem OpenAIoT:
 
 ```text
 OpenAIoT
@@ -2198,7 +2200,7 @@ Dashboard
 
 # 75. Pallet carton case
 
-Untuk project kamu nanti:
+Contoh alur implementasi inspeksi box pada pallet:
 
 ```text
 Camera
@@ -2375,7 +2377,7 @@ Ini akan sangat menarik.
 
 # 82. Recommended development order
 
-Kalau saya yang build, urutannya:
+Urutan implementasi:
 
 ```text
 1 Project management
@@ -2443,7 +2445,7 @@ Kalau saya yang build, urutannya:
 
 # 83. First real milestone
 
-Saya akan menetapkan milestone pertama:
+milestone pertama:
 
 > **User bisa membuat Banana Counter tanpa mengetik satu baris kode.**
 
@@ -2473,19 +2475,9 @@ Acceptance test:
 ☑ count increases
 ```
 
-Kalau 10 item ini sudah berjalan, sebenarnya kamu sudah punya **produk yang demonstrable**, bukan sekadar proof-of-concept.
-
 ---
 
 # Bentuk produk akhirnya
-
-Menurut saya arahnya jangan:
-
-```text
-YOLO GUI
-```
-
-tetapi:
 
 ```text
 OpenAIoT Vision Studio
@@ -2500,25 +2492,3 @@ Vision Logic
    ↓
 Industrial Deployment
 ```
-
-Dan value proposition-nya bisa sangat sederhana:
-
-> **Build industrial computer vision applications without writing code.**
-
-Yang paling menarik adalah kombinasi pengalamanmu di **PLC + SCADA + MQTT + industrial software** dengan vision. Kebanyakan annotation/training tools berhenti di **“model berhasil mendeteksi object”**. Produkmu justru bisa melanjutkan sampai:
-
-```text
-Object detected
-       ↓
-Decision
-       ↓
-Production logic
-       ↓
-PLC / MES / SCADA / MQTT
-```
-
-Itu yang menurut saya pantas dijadikan pembeda utama Vision Studio di OpenAIoT.
-
-
-
-repo: https://github.com/akkbar/openindustry-yolostudio
