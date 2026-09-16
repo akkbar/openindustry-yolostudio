@@ -93,7 +93,7 @@ The remaining phases focus on factory floor integration, visual programming, and
 
 ### Running the Packaged App (Users)
 
-1. Run the installer: `artifacts/OpenIndustry-Vision-Studio-Setup.exe` (Administrator required).
+1. Run the installer: `artifacts/OpenIndustry-Vision-Studio-Setup.exe` (Administrator required). (downloadable latest setup: https://drive.google.com/file/d/1bIIfuk8rC36EZ_QBfDo4VrIW0eeQvCAP/view?usp=drive_link)
 2. Alternatively, run the portable build from `artifacts/desktop/OpenIndustry Vision Studio.exe`.
 3. The application will launch, automatically manage its background service, and connect without requiring any Python or runtime installation.
 
