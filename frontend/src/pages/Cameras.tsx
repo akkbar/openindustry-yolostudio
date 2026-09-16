@@ -12,7 +12,7 @@ export default function Cameras() {
   const copy = en.cameras;
   const [cameras, setCameras] = useState<UsbCamera[] | null>(null);
   const [projects, setProjects] = useState<Project[] | null>(null);
-  const [projectId, setProjectId] = useState('');
+  const [projectId, setProjectId] = useState(() => window.location.hash.split('/')[1] ?? '');
   const [error, setError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [starting, setStarting] = useState<number | null>(null);
@@ -71,7 +71,7 @@ export default function Cameras() {
   const start = async (camera: UsbCamera) => {
     if (!projectId) { setError(copy.chooseProject); return; }
     setStarting(camera.index); setError(null); setFrameUrl(null); setDetections([]);
-    try { setSession(await startCameraSession(projectId, camera.index)); }
+    try { const next = await startCameraSession(projectId, camera.index); setSession(next); if (typeof next.recommended_confidence === 'number') setConfidence(next.recommended_confidence); }
     catch (failure) { setError(describe(failure, copy.previewFailed)); }
     finally { setStarting(null); }
   };
@@ -90,7 +90,7 @@ export default function Cameras() {
 function CameraPreview({ session, imageUrl, detections, confidence, confidenceLabel, onConfidence, onStop }: { session: CameraSession; imageUrl: string | null; detections: CameraDetection[]; confidence: number; confidenceLabel: string; onConfidence: (value: number) => void; onStop: () => void }) {
   const copy = en.cameras;
   return <section className="camera-preview" aria-labelledby="camera-preview-title">
-    <header><div><p className="eyebrow">{copy.live}</p><h3 id="camera-preview-title">{copy.preview(session.camera_index.toLocaleString(APP_LOCALE))}</h3><p>{session.inference_status === 'ready' ? copy.inferenceReady : copy.noActiveModel}</p></div><button onClick={onStop}><Square size={15} />{copy.stop}</button></header>
+    <header><div><p className="eyebrow">{copy.live}</p><h3 id="camera-preview-title">{copy.preview(session.camera_index.toLocaleString(APP_LOCALE))}</h3><p>{session.inference_status === 'ready' ? session.active_model_source === 'catalog' ? copy.inferenceCatalog : copy.inferenceReady : copy.noActiveModel}</p></div><button onClick={onStop}><Square size={15} />{copy.stop}</button></header>
     <div className="camera-frame" aria-label={copy.frame}>
       {imageUrl ? <><img src={imageUrl} alt={copy.frame} /><svg viewBox="0 0 1 1" preserveAspectRatio="none" aria-label={copy.overlay} role="img">{detections.map((item, index) => <g key={`${item.class_id}-${index}`}><rect x={item.x} y={item.y} width={item.width} height={item.height} /><text x={item.x} y={Math.max(0.04, item.y - 0.01)}>{`${item.class_name} ${(item.confidence * 100).toLocaleString(APP_LOCALE, { maximumFractionDigits: 0 })}%`}</text></g>)}</svg></> : <p role="status"><Video size={26} />{copy.loadingPreview}</p>}
     </div>

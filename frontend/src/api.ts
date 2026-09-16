@@ -106,6 +106,26 @@ export const updateProject = (id: string, draft: Partial<ProjectDraft>) =>
 export const deleteProject = (id: string) =>
   call<void>(`/projects/${encodeURIComponent(id)}`, { method: 'DELETE' });
 
+export type CatalogTask = 'detect' | 'pose' | 'segment' | 'classify';
+export type CatalogModelStatus = 'BUILT_IN' | 'AVAILABLE' | 'DOWNLOADING' | 'INSTALLED' | 'ERROR' | 'UPDATE_AVAILABLE';
+export interface CatalogModel {
+  id: string; name: string; category: string; description: string; task: CatalogTask;
+  source_type: 'builtin' | 'downloadable'; classes: string[]; class_filter: string[];
+  base_model_id: string | null; recommended_confidence: number; recommended_iou: number;
+  fine_tuning_recommended: boolean; model_version: string; source: string; source_url: string | null;
+  author: string; license: string; dataset_license: string; redistribution_allowed: boolean | null;
+  expected_filename: string | null; download_url: string | null; checksum: string | null;
+  status: CatalogModelStatus; install_error: string | null;
+}
+export const listModelCatalog = (category?: string, query?: string, signal?: AbortSignal) => {
+  const params = new URLSearchParams(); if (category) params.set('category', category); if (query) params.set('query', query);
+  return call<{ models: CatalogModel[]; categories: string[] }>(`/model-catalog${params.size ? `?${params}` : ''}`, { signal });
+};
+export const selectCatalogModel = (projectId: string, modelId: string) =>
+  call<{ model: CatalogModel; settings: { confidence: number; iou_threshold: number; class_filter: string[]; model_version: string }; project_id: string }>(`/model-catalog/projects/${encodeURIComponent(projectId)}/selection`, { method: 'PUT', body: JSON.stringify({ model_id: modelId }) });
+export const createProjectFromCatalog = (modelId: string, draft: ProjectDraft) =>
+  call<Project>(`/model-catalog/models/${encodeURIComponent(modelId)}/projects`, { method: 'POST', body: JSON.stringify(draft) });
+
 export interface DemoDataset {
   id: 'apple'; name: string; source_name: string; source_url: string; license: string;
   image_count: number; class_name: string; archive_bytes: number;
@@ -182,7 +202,7 @@ export interface CameraSession {
   id: string; project_id: string; camera_index: number;
   status: 'starting' | 'running' | 'failed' | 'stopped';
   inference_status: 'ready' | 'no_active_model' | 'unavailable';
-  active_model_id: string | null; frame_id: number;
+  active_model_id: string | null; active_model_source: 'custom' | 'catalog' | 'none'; active_catalog_model_id: string | null; recommended_confidence: number; frame_id: number;
   frame_width: number | null; frame_height: number | null; fps: number;
   detections: CameraDetection[]; error: string | null;
 }

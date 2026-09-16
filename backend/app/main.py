@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from app import __version__, annotations, base_models, camera_sessions, cameras, classes, dataset_export, db, demo_datasets, gallery, image_import, model_registry, projects, storage, training_jobs, training_worker, vision_runtime
+from app import __version__, annotations, base_models, camera_sessions, cameras, classes, dataset_export, db, demo_datasets, gallery, image_import, model_catalog, model_registry, projects, storage, training_jobs, training_worker, vision_runtime
 from app.errors import register_error_handlers
 from app.paths import initialize_storage
 
@@ -112,6 +112,7 @@ app.include_router(annotations.router)
 app.include_router(dataset_export.router)
 app.include_router(training_jobs.router)
 app.include_router(model_registry.router)
+app.include_router(model_catalog.router)
 app.include_router(cameras.router)
 app.include_router(camera_sessions.router)
 app.include_router(demo_datasets.router)

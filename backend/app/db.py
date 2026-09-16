@@ -70,6 +70,21 @@ def _migrate_demo_dataset_phase_27(connection: sqlite3.Connection) -> None:
     )
 
 
+def _migrate_model_catalog(connection: sqlite3.Connection) -> None:
+    """Add shared pretrained-model selections without changing local model ownership."""
+    columns = {row["name"] for row in connection.execute("PRAGMA table_info(projects)")}
+    if "catalog_model_id" not in columns:
+        connection.execute("ALTER TABLE projects ADD COLUMN catalog_model_id TEXT")
+    if "catalog_model_settings" not in columns:
+        connection.execute("ALTER TABLE projects ADD COLUMN catalog_model_settings TEXT")
+    connection.execute(
+        "CREATE TABLE IF NOT EXISTS catalog_model_installations ("
+        "model_id TEXT PRIMARY KEY, status TEXT NOT NULL, version TEXT NOT NULL, "
+        "relative_path TEXT, checksum TEXT, error TEXT, updated_at TEXT NOT NULL"
+        ")"
+    )
+
+
 # Each entry upgrades the database from ``version - 1`` to ``version``.
 # Never edit a released migration; append a new one instead.
 MIGRATIONS: list[Migration] = [
@@ -230,6 +245,7 @@ MIGRATIONS: list[Migration] = [
     (6, _migrate_training_jobs_phase_17),
     (7, _migrate_model_registry_phase_21),
     (8, _migrate_demo_dataset_phase_27),
+    (9, _migrate_model_catalog),
 ]
 
 SCHEMA_VERSION = MIGRATIONS[-1][0]

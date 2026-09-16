@@ -161,7 +161,7 @@ def activate_model(project_id: str, model_id: str, space: WorkspaceDep) -> Regis
         _read_model(connection, project_id, model_id)
         connection.execute("UPDATE models SET status = 'development' WHERE project_id = ? AND status = 'production' AND id != ?", (project_id, model_id))
         connection.execute("UPDATE models SET status = 'production' WHERE id = ?", (model_id,))
-        connection.execute("UPDATE projects SET active_model_id = ?, updated_at = ? WHERE id = ?", (model_id, _now(), project_id))
+        connection.execute("UPDATE projects SET active_model_id = ?, catalog_model_id = NULL, catalog_model_settings = NULL, updated_at = ? WHERE id = ?", (model_id, _now(), project_id))
         return _response(_read_model(connection, project_id, model_id), space.data_root, model_id)
 
 

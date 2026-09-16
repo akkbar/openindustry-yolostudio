@@ -1,9 +1,9 @@
 import { type FormEvent, useEffect, useState } from 'react';
-import { Archive, Check, CircleHelp, HardDrive, Play, RefreshCw, ShieldCheck, X } from 'lucide-react';
+import { AlertTriangle, Archive, Check, CircleHelp, HardDrive, Layers3, Play, RefreshCw, Search, ShieldCheck, X } from 'lucide-react';
 import {
   ApiError, activateRegisteredModel, archiveRegisteredModel, cancelTrainingJob, createTrainingJob,
-  getTrainingJob, listProjects, listRegisteredModels, listTrainingJobs, startTrainingJob,
-  type BaseModel, type Project, type RegisteredModel, type TrainingJob,
+  createProjectFromCatalog, getTrainingJob, listModelCatalog, listProjects, listRegisteredModels, listTrainingJobs, selectCatalogModel, startTrainingJob,
+  type BaseModel, type CatalogModel, type CatalogTask, type Project, type RegisteredModel, type TrainingJob,
 } from '../api';
 import { APP_LOCALE, en } from '../locales/en';
 
@@ -222,6 +222,74 @@ function ProjectModels({ projectId, refreshKey }: { projectId: string; refreshKe
   </section>;
 }
 
+const catalogTaskLabel = (task: CatalogTask) => {
+  const copy = en.models.library;
+  return task === 'detect' ? copy.taskDetect : task === 'pose' ? copy.taskPose : task === 'segment' ? copy.taskSegment : copy.taskClassify;
+};
+
+function ModelLibrary() {
+  const copy = en.models.library;
+  const [models, setModels] = useState<CatalogModel[] | null>(null);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectId, setProjectId] = useState(projectFromHash);
+  const [category, setCategory] = useState('');
+  const [query, setQuery] = useState('');
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ model: string; project: Project } | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void listProjects(controller.signal).then(result => { if (!controller.signal.aborted) setProjects(result.projects); }).catch(failure => { if (!controller.signal.aborted) setError(describe(failure)); });
+    return () => controller.abort();
+  }, []);
+  useEffect(() => {
+    const controller = new AbortController();
+    setModels(null);
+    void listModelCatalog(category, query, controller.signal).then(result => {
+      if (!controller.signal.aborted) { setModels(result.models); setCategories(result.categories); }
+    }).catch(failure => { if (!controller.signal.aborted) { setError(describe(failure)); setModels([]); } });
+    return () => controller.abort();
+  }, [category, query]);
+
+  const useModel = async (model: CatalogModel) => {
+    if (!projectId) { setError(copy.chooseProject); return; }
+    setBusy(model.id); setError(null);
+    try {
+      await selectCatalogModel(projectId, model.id);
+      const project = projects.find(item => item.id === projectId);
+      if (project) setNotice({ model: model.name, project });
+    } catch (failure) { setError(describe(failure) || copy.selectionFailed); }
+    finally { setBusy(null); }
+  };
+  const createFromModel = async (model: CatalogModel) => {
+    setBusy(`create-${model.id}`); setError(null);
+    try {
+      const project = await createProjectFromCatalog(model.id, { name: copy.newProject(model.name), description: copy.newDescription(model.name) });
+      setProjects(current => [...current, project].sort((left, right) => left.name.localeCompare(right.name, APP_LOCALE)));
+      setProjectId(project.id); setNotice({ model: model.name, project });
+    } catch (failure) { setError(describe(failure) || copy.selectionFailed); }
+    finally { setBusy(null); }
+  };
+  const runnable = (model: CatalogModel) => model.status === 'BUILT_IN' || model.status === 'INSTALLED';
+
+  return <section className="model-library" aria-labelledby="model-library-title">
+    <header><div><p className="eyebrow">{copy.eyebrow}</p><h2 id="model-library-title">{copy.title}</h2><p>{copy.detail}</p></div><Layers3 size={28} aria-hidden="true" /></header>
+    <div className="catalog-controls"><label className="field"><span>{copy.search}</span><div className="catalog-search"><Search size={16} /><input value={query} placeholder={copy.search} onChange={event => setQuery(event.target.value)} /></div></label><label className="field"><span>{copy.category}</span><select value={category} onChange={event => setCategory(event.target.value)}><option value="">{copy.allCategories}</option>{categories.map(item => <option key={item} value={item}>{item}</option>)}</select></label><label className="field"><span>{copy.project}</span><select value={projectId} onChange={event => setProjectId(event.target.value)}><option value="">{copy.chooseProject}</option>{projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label></div>
+    {error && <p className="field-error" role="alert">{error}</p>}
+    {notice && <div className="catalog-notice" role="status"><Check size={17} /><span>{copy.selected(notice.model, notice.project.name)}</span><button className="ghost-button" onClick={() => { window.location.hash = `Cameras/${notice.project.id}`; }}><Play size={15} />{copy.openCameras}</button></div>}
+    {models === null ? <p>{copy.loading}</p> : !models.length ? <p>{copy.empty}</p> : <ul className="catalog-grid">{models.map(model => <li key={model.id} className="catalog-card">
+      <div className="catalog-card-heading"><div><span className="catalog-category">{model.category}</span><h3>{model.name}</h3></div><span className={`catalog-status ${model.status.toLowerCase()}`}>{model.status === 'BUILT_IN' ? copy.ready : model.status === 'AVAILABLE' ? copy.available : model.status === 'INSTALLED' ? copy.installed : model.status === 'DOWNLOADING' ? copy.downloading : model.status === 'UPDATE_AVAILABLE' ? copy.update : copy.error}</span></div>
+      <p>{model.description}</p><dl><div><dt>{copy.task}</dt><dd>{catalogTaskLabel(model.task)}</dd></div><div><dt>{copy.source}</dt><dd>{model.source_type === 'builtin' ? copy.builtin : copy.downloadable}</dd></div><div><dt>{copy.version}</dt><dd>{model.model_version}</dd></div></dl>
+      <div className="catalog-classes"><strong>{copy.classes}</strong><span>{model.classes.slice(0, 12).join(', ')}{model.classes.length > 12 ? ` +${model.classes.length - 12}` : ''}</span></div>
+      {model.fine_tuning_recommended && <p className="catalog-fine"><AlertTriangle size={15} />{copy.fineTuning}</p>}
+      {model.redistribution_allowed === false && <p className="catalog-warning"><AlertTriangle size={15} />{copy.sourceWarning}</p>}
+      <div className="catalog-actions">{runnable(model) ? <><button className="ghost-button" disabled={!!busy} onClick={() => void useModel(model)}><Play size={15} />{busy === model.id ? copy.using : copy.use}</button><button className="primary-button" disabled={!!busy} onClick={() => void createFromModel(model)}><Layers3 size={15} />{busy === `create-${model.id}` ? copy.creating : copy.create}</button></> : <span>{copy.available}</span>}</div>
+    </li>)}</ul>}
+  </section>;
+}
+
 export default function Models({ baseModel }: ModelsProps) {
   const copy = en.models;
   if (!baseModel) {
@@ -247,6 +315,7 @@ export default function Models({ baseModel }: ModelsProps) {
       </dl>
       <p className="base-model-boundary">{copy.boundary}</p>
     </article>
+    <ModelLibrary />
     <TrainingForm baseModel={baseModel} />
   </section>;
 }

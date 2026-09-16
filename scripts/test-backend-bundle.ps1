@@ -137,6 +137,13 @@ try {
     foreach ($directory in @('dataset','models','runs','events')) {
         Assert-Check (Test-Path -LiteralPath (Join-Path $projectFolder $directory)) "The project $directory folder was created."
     }
+    $catalog = Invoke-RestMethod "$baseUrl/model-catalog?query=bottle" -TimeoutSec 5
+    $bottlePreset = @($catalog.models | Where-Object { $_.id -eq 'bottle-detection' })[0]
+    Assert-Check ($null -ne $bottlePreset -and $bottlePreset.status -eq 'BUILT_IN' -and $bottlePreset.base_model_id -eq 'yolo11n' -and $bottlePreset.class_filter.Count -eq 1 -and $bottlePreset.class_filter[0] -eq 'bottle') 'The packaged backend exposes the shared built-in bottle detection catalog preset.'
+    $catalogSelection = Invoke-RestMethod "$baseUrl/model-catalog/projects/$($created.id)/selection" -Method Put -ContentType 'application/json' -Body '{"model_id":"bottle-detection"}' -TimeoutSec 5
+    Assert-Check ($catalogSelection.model.id -eq 'bottle-detection' -and $catalogSelection.settings.confidence -eq 0.35) 'The packaged backend stores a built-in catalog selection with its recommended inference setting.'
+    $storedCatalogSelection = Invoke-RestMethod "$baseUrl/model-catalog/projects/$($created.id)/selection" -TimeoutSec 5
+    Assert-Check ($storedCatalogSelection.model.id -eq 'bottle-detection' -and $storedCatalogSelection.settings.class_filter.Count -eq 1 -and $storedCatalogSelection.settings.class_filter[0] -eq 'bottle') 'The packaged backend persists the catalog class filter.'
     $trainingJobsUrl = "$baseUrl/projects/$($created.id)/training-jobs"
     $queuedJob = Invoke-RestMethod $trainingJobsUrl -Method Post -ContentType 'application/json' -Body '{"epochs":3,"imgsz":320}' -TimeoutSec 5
     Assert-Check ($queuedJob.status -eq 'queued' -and $queuedJob.model -eq 'yolo11n' -and $queuedJob.epochs -eq 3 -and $queuedJob.imgsz -eq 320 -and $queuedJob.progress -eq 0 -and $null -eq $queuedJob.started_at -and $null -eq $queuedJob.finished_at) 'The packaged backend queues a persisted training job before starting a worker.'

@@ -11,7 +11,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, Path as FastApiPath, Query, Request, Response
 from pydantic import BaseModel, Field
 
-from app import db, model_registry
+from app import db, model_catalog, model_registry
 from app.errors import AppError
 from app.projects import WorkspaceDep, _read
 
@@ -38,6 +38,9 @@ class CameraSessionResponse(BaseModel):
     status: SessionStatus
     inference_status: InferenceStatus
     active_model_id: str | None
+    active_model_source: Literal["custom", "catalog", "none"]
+    active_catalog_model_id: str | None
+    recommended_confidence: float
     frame_id: int
     frame_width: int | None
     frame_height: int | None
@@ -70,7 +73,7 @@ def _as_list(value):
     return value.tolist() if hasattr(value, "tolist") else list(value)
 
 
-def _infer(model, frame) -> list[CameraDetection]:
+def _infer(model, frame, class_filter: tuple[str, ...] = ()) -> list[CameraDetection]:
     height, width = frame.shape[:2]
     if not width or not height:
         return []
@@ -87,6 +90,8 @@ def _infer(model, frame) -> list[CameraDetection]:
         x1, y1, x2, y2 = (float(value) for value in coordinates)
         numeric_class_id = int(class_id)
         class_name = names.get(numeric_class_id, str(numeric_class_id)) if isinstance(names, dict) else str(numeric_class_id)
+        if class_filter and str(class_name).casefold() not in {name.casefold() for name in class_filter}:
+            continue
         x = max(0.0, min(1.0, x1 / width))
         y = max(0.0, min(1.0, y1 / height))
         right = max(x, min(1.0, x2 / width))
@@ -106,6 +111,10 @@ class _CameraSession:
     camera_index: int
     active_model_id: str | None
     model_path: Path | None
+    active_model_source: Literal["custom", "catalog", "none"] = "none"
+    active_catalog_model_id: str | None = None
+    class_filter: tuple[str, ...] = ()
+    recommended_confidence: float = 0.5
     status: SessionStatus = "starting"
     inference_status: InferenceStatus = "no_active_model"
     error: str | None = None
@@ -126,6 +135,8 @@ class _CameraSession:
                 id=self.id, project_id=self.project_id, camera_index=self.camera_index,
                 status=self.status, inference_status=self.inference_status,
                 active_model_id=self.active_model_id, frame_id=self.frame_id,
+                active_model_source=self.active_model_source, active_catalog_model_id=self.active_catalog_model_id,
+                recommended_confidence=self.recommended_confidence,
                 frame_width=self.frame_width, frame_height=self.frame_height, fps=self.fps,
                 detections=self.detections, error=self.error,
             )
@@ -201,7 +212,7 @@ class _CameraSession:
                 if jpeg is None:
                     self._fail("The USB camera frame could not be encoded.")
                     return
-                detections = _infer(model, image) if model is not None else []
+                detections = _infer(model, image, self.class_filter) if model is not None else []
                 elapsed = max(time.monotonic() - started, 0.001)
                 with self.condition:
                     self.frame_id += 1
@@ -237,14 +248,29 @@ class CameraSessionManager:
             project = _read(connection, project_id)
             active_model_id = project["active_model_id"]
             model_path = None
-            if active_model_id is not None:
+            active_model_source: Literal["custom", "catalog", "none"] = "none"
+            active_catalog_model_id = None
+            class_filter: tuple[str, ...] = ()
+            recommended_confidence = 0.5
+            selection = model_catalog.selected_project_model(connection, project_id)
+            if selection is not None:
+                catalog_definition, settings = selection
+                model_path, class_filter, recommended_confidence = model_catalog.runtime_model(connection, self.data_root, catalog_definition.id)
+                active_model_source = "catalog"
+                active_catalog_model_id = catalog_definition.id
+                active_model_id = f"catalog:{catalog_definition.id}"
+                confidence = settings.get("confidence")
+                if isinstance(confidence, (float, int)) and 0.01 <= confidence <= 1:
+                    recommended_confidence = float(confidence)
+            elif active_model_id is not None:
                 model = model_registry._read_model(connection, project_id, active_model_id)
                 if model["status"] == "archived":
                     raise AppError(409, "active_model_archived", "The active model is archived. Choose another production model before starting inference.")
                 model_path = model_registry._model_path(self.data_root, project_id, model["relative_path"])
                 if not model_path.is_file():
                     raise AppError(409, "model_artifact_missing", "The active model checkpoint is missing. Choose another production model before starting inference.")
-        session = _CameraSession(uuid.uuid4().hex, project_id, camera_index, active_model_id, model_path)
+                active_model_source = "custom"
+        session = _CameraSession(uuid.uuid4().hex, project_id, camera_index, active_model_id, model_path, active_model_source, active_catalog_model_id, class_filter, recommended_confidence)
         with self._lock:
             self._sessions[session.id] = session
         session.start()
