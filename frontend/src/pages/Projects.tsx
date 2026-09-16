@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CircleHelp, FolderOpen, Pencil, Plus, Trash2 } from 'lucide-react';
+import { CheckCircle2, CircleHelp, Download, ExternalLink, FolderOpen, LoaderCircle, Pencil, Plus, Trash2 } from 'lucide-react';
 import {
-  ApiError, createProject, deleteProject, getProject, listProjects, updateProject, type Project,
+  ApiError, createProject, deleteProject, getAppleDemoDataset, getProject, listProjects, startAppleDemoDataset, updateProject, type DemoDataset, type Project,
 } from '../api';
 import { APP_LOCALE, en } from '../locales/en';
 import ImageImport from './ImageImport';
@@ -127,6 +127,8 @@ export default function Projects() {
         </div>
       )}
 
+      <AppleDemoDataset onCompleted={load} />
+
       {total > 0 && (
         <ul className="project-grid">
           {projects?.map((project) => (
@@ -183,6 +185,56 @@ export default function Projects() {
       ) : null}
     </section>
   );
+}
+
+function AppleDemoDataset({ onCompleted }: { onCompleted: () => void | Promise<void> }) {
+  const copy = en.projects.demo;
+  const [demo, setDemo] = useState<DemoDataset | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const result = await getAppleDemoDataset(signal);
+      if (!signal?.aborted) { setDemo(result); setError(null); }
+    } catch (failure) {
+      if (!(failure instanceof DOMException && failure.name === 'AbortError')) {
+        setError(describe(failure));
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => controller.abort();
+  }, [load]);
+
+  useEffect(() => {
+    if (!demo || !['downloading', 'importing'].includes(demo.status)) return;
+    const interval = window.setInterval(() => void load(), 750);
+    return () => window.clearInterval(interval);
+  }, [demo?.status, load]);
+
+  useEffect(() => {
+    if (demo?.status === 'completed') onCompleted();
+  }, [demo?.status, onCompleted]);
+
+  const start = async () => {
+    setError(null);
+    try { setDemo(await startAppleDemoDataset()); }
+    catch (failure) { setError(describe(failure)); }
+  };
+  const active = demo?.status === 'downloading' || demo?.status === 'importing';
+  const percentage = Math.round((demo?.progress ?? 0) * 100).toLocaleString(APP_LOCALE);
+  return <aside className="demo-dataset-card" aria-live="polite">
+    <div><p className="eyebrow">{copy.eyebrow}</p><h2>{copy.title}</h2><p>{copy.detail}</p></div>
+    <dl className="demo-dataset-meta"><div><dt>{copy.imageCount((demo?.image_count ?? 3169).toLocaleString(APP_LOCALE))}</dt><dd>{copy.source}: <a href={demo?.source_url ?? 'https://www.kaggle.com/datasets/projectlzp201910094/applebbch76'} target="_blank" rel="noreferrer">AppleBBCH76 <ExternalLink size={12} aria-hidden="true" /></a></dd></div><div><dt>{copy.license}</dt><dd>{demo?.license ?? 'CC BY 4.0'}</dd></div></dl>
+    {active && <><div className="demo-progress"><span style={{ width: `${Math.max(2, demo?.progress ?? 0) * 100}%` }} /></div><p className="demo-status"><LoaderCircle size={16} className="spin" />{demo?.message} {copy.progress(percentage)}</p></>}
+    {demo?.status === 'failed' && <p className="field-error" role="alert">{demo.error ?? copy.failed}</p>}
+    {error && <p className="field-error" role="alert">{error}</p>}
+    {demo?.status === 'completed' && demo.project_id ? <><p className="demo-status"><CheckCircle2 size={16} />{copy.ready}</p><button className="primary-button" onClick={() => { window.location.hash = `Projects/${demo.project_id}`; }}><FolderOpen size={17} />{copy.open}</button></> : <button className="primary-button" onClick={() => void start()} disabled={active}><Download size={17} />{active ? demo?.status === 'downloading' ? copy.downloading : copy.importing : demo?.status === 'failed' ? copy.retry : copy.download}</button>}
+    <p className="demo-attribution">{copy.attribution}</p>
+  </aside>;
 }
 
 /** Restores focus to the element that opened the dialog and closes on Escape. */

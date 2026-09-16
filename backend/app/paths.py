@@ -18,6 +18,6 @@ def data_root() -> Path:
 
 def initialize_storage() -> Path:
     root = data_root()
-    for directory in ("data", "projects", "logs"):
+    for directory in ("data", "projects", "logs", "demo-datasets"):
         (root / directory).mkdir(parents=True, exist_ok=True)
     return root

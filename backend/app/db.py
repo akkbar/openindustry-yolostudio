@@ -57,6 +57,19 @@ def _migrate_model_registry_phase_21(connection: sqlite3.Connection) -> None:
     )
 
 
+def _migrate_demo_dataset_phase_27(connection: sqlite3.Connection) -> None:
+    """Remember a completed public demo import across application restarts."""
+    connection.execute(
+        "CREATE TABLE IF NOT EXISTS demo_dataset_imports ("
+        "source_id TEXT PRIMARY KEY, "
+        "project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, "
+        "source_url TEXT NOT NULL, "
+        "license TEXT NOT NULL, "
+        "imported_at TEXT NOT NULL"
+        ")"
+    )
+
+
 # Each entry upgrades the database from ``version - 1`` to ``version``.
 # Never edit a released migration; append a new one instead.
 MIGRATIONS: list[Migration] = [
@@ -216,6 +229,7 @@ MIGRATIONS: list[Migration] = [
     )),
     (6, _migrate_training_jobs_phase_17),
     (7, _migrate_model_registry_phase_21),
+    (8, _migrate_demo_dataset_phase_27),
 ]
 
 SCHEMA_VERSION = MIGRATIONS[-1][0]

@@ -106,6 +106,15 @@ export const updateProject = (id: string, draft: Partial<ProjectDraft>) =>
 export const deleteProject = (id: string) =>
   call<void>(`/projects/${encodeURIComponent(id)}`, { method: 'DELETE' });
 
+export interface DemoDataset {
+  id: 'apple'; name: string; source_name: string; source_url: string; license: string;
+  image_count: number; class_name: string; archive_bytes: number;
+  status: 'not_started' | 'downloading' | 'importing' | 'completed' | 'failed';
+  progress: number; message: string; project_id: string | null; error: string | null;
+}
+export const getAppleDemoDataset = (signal?: AbortSignal) => call<DemoDataset>('/demo-datasets/apple', { signal });
+export const startAppleDemoDataset = () => call<DemoDataset>('/demo-datasets/apple', { method: 'POST' });
+
 export type TrainingJobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
 export interface TrainingJob {
   id: string;

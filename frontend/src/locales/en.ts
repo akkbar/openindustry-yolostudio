@@ -170,6 +170,15 @@ export const en = {
     deleteDetail: (name: string) => `Deleting ${name} permanently removes its images, annotations, and models from this computer. This cannot be undone.`,
     deleteConfirm: 'Delete project',
     deleting: 'Deleting',
+    demo: {
+      eyebrow: 'READY-TO-TRY DATASET', title: 'Apple detector demo',
+      detail: 'Download all 3,169 AppleBBCH76 images with their original YOLO annotations, then explore the complete dataset-to-model workflow.',
+      source: 'Source', license: 'License', imageCount: (count: string) => `${count} annotated images`,
+      download: 'Download Apple detector demo', downloading: 'Downloading demo dataset', importing: 'Importing demo dataset',
+      ready: 'Apple detector demo is ready.', open: 'Open Apple detector demo', retry: 'Retry download',
+      progress: (value: string) => `${value}% complete`, failed: 'The Apple detector demo could not be imported.',
+      attribution: 'AppleBBCH76 by RTA & LatHort projects. Use and attribution are subject to CC BY 4.0.',
+    },
   },
   annotator: {
     title: 'Annotation editor', open: (name: string) => `Annotate image ${name}`, annotate: 'Annotate', close: 'Close editor',
