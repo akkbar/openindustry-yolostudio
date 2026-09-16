@@ -1,5 +1,6 @@
 {
-  "productName": "Vision Studio QA",
+  "productName": "OpenIndustry Vision Studio QA",
+  "mainBinaryName": "OpenIndustry Vision Studio",
   "identifier": "com.openaiot.visionstudio.qa",
   "bundle": {
     "windows": {

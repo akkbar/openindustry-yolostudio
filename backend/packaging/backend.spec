@@ -38,6 +38,9 @@ a = Analysis(
         "app.model_registry",
         "app.cameras",
         "app.camera_sessions",
+        "app.counting",
+        "app.events",
+        "app.project_cameras",
         "app.training_worker",
         # Declared explicitly because it carries a binary extension and a DLL.
         "sqlite3",

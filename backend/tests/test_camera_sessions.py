@@ -34,7 +34,7 @@ class Capture:
 
     def read(self):
         time.sleep(0.01)
-        return (False, None) if self.released else (True, np.zeros((40, 80, 3), dtype=np.uint8))
+        return (False, None) if self.released else (True, np.full((40, 80, 3), 127, dtype=np.uint8))
 
     def release(self):
         self.released = True
@@ -55,7 +55,7 @@ def test_preview_session_returns_jpeg_and_releases_camera_on_stop(workspace, mon
     capture = Capture()
     monkeypatch.setattr(camera_sessions, "_open_capture", lambda _: capture)
 
-    started = client.post(f"/projects/{project_id}/cameras/usb/0/sessions")
+    started = client.post(f"/projects/{project_id}/cameras/usb/usb-receiving/sessions", json={"index": 0, "name": "Receiving camera"})
     assert started.status_code == 201, started.text
     session_id = started.json()["id"]
     frame = wait_for_frame(client, project_id, session_id)
@@ -64,6 +64,7 @@ def test_preview_session_returns_jpeg_and_releases_camera_on_stop(workspace, mon
     assert json.loads(frame.headers["x-vision-detections"]) == []
     state = client.get(f"/projects/{project_id}/cameras/usb/sessions/{session_id}").json()
     assert state["status"] == "running"
+    assert state["camera_id"] == "usb-receiving" and state["camera_name"] == "Receiving camera"
     assert state["inference_status"] == "no_active_model"
     assert state["frame_width"] == 80 and state["frame_height"] == 40
 
@@ -108,7 +109,7 @@ def test_active_model_inference_returns_normalized_live_detections(workspace, mo
     frame = wait_for_frame(client, project_id, session_id)
     assert json.loads(frame.headers["x-vision-detections"]) == [{
         "class_id": 0, "class_name": "Banana", "confidence": 0.8,
-        "x": 0.1, "y": 0.1, "width": 0.5, "height": 0.5,
+        "x": 0.1, "y": 0.1, "width": 0.5, "height": 0.5, "track_id": 1,
     }]
     state = client.get(f"/projects/{project_id}/cameras/usb/sessions/{session_id}").json()
     assert state["inference_status"] == "ready" and state["active_model_id"] == model_id

@@ -860,6 +860,8 @@ Detect
 
 # Phase 27 — Tracking
 
+> Status (2026-09-16): implemented with a bounded local ByteTrack-style tracker and stable session track identifiers. See [Phases 27�31 evidence](docs/phases-27-31.md).
+
 Tambahkan ByteTrack.
 
 Detection menjadi:
@@ -877,6 +879,8 @@ Acceptance:
 ---
 
 # Phase 28 — Draw Counting Line
+
+> Status (2026-09-16): implemented with normalized, persisted project lines and a live-frame editor.
 
 Camera preview punya:
 
@@ -897,6 +901,8 @@ Persist ke project.
 ---
 
 # Phase 29 — Line Crossing
+
+> Status (2026-09-16): implemented with segment-intersection and direction checks for tracked centroids.
 
 Use tracked centroid.
 
@@ -922,6 +928,8 @@ Support:
 ---
 
 # Phase 30 — Counter
+
+> Status (2026-09-16): implemented with session-local duplicate prevention by track and line; frozen-backend and packaged-desktop checks passed.
 
 Counter:
 
@@ -954,6 +962,8 @@ Ini versi demo produk pertama.
 
 # Phase 31 — ROI
 
+> Status (2026-09-16): implemented with a normalized polygon ROI that filters detections before tracking.
+
 Tambahkan polygon ROI.
 
 Workflow:
@@ -973,6 +983,8 @@ Ignore object di luar area.
 ---
 
 # Phase 32 — Events
+
+> Status (2026-09-16): implemented. Line crossings now persist project events with timestamp, class, track ID, per-line count, and confidence. See [Phases 32–34 evidence](docs/phases-32-34.md).
 
 Table:
 
@@ -998,6 +1010,8 @@ Store:
 
 # Phase 33 — Snapshot
 
+> Status (2026-09-16): implemented. Each persisted line-cross event saves its encoded camera frame as a project-local JPEG and the Cameras page lists recent events with snapshots. See [Phases 32–34 evidence](docs/phases-32-34.md).
+
 Saat event:
 
 ```text
@@ -1013,6 +1027,8 @@ UI event list.
 ---
 
 # Phase 34 — RTSP Camera
+
+> Status (2026-09-16): implemented. Projects can save RTSP URLs and optional credentials, start RTSP preview sessions, and reconnect after a stream interruption. See [Phases 32–34 evidence](docs/phases-32-34.md).
 
 Camera type:
 

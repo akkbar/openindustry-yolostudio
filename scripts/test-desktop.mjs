@@ -15,16 +15,16 @@ const release = args.includes('--release');
 const missingBackend = args.includes('--missing-backend');
 const crash = args.includes('--crash');
 const source = installedIndex >= 0 ? path.resolve(args[installedIndex + 1])
-  : path.join(root, 'artifacts', release ? 'desktop' : 'desktop-debug', 'VisionStudio.exe');
+  : path.join(root, 'artifacts', release ? 'desktop' : 'desktop-debug', 'OpenIndustry Vision Studio.exe');
 if (!existsSync(source)) throw new Error('Build the desktop first with npm run build:desktop or npm run build:installer.');
 const testRoot = path.join(process.env.LOCALAPPDATA, 'VisionStudio', 'qa', `Desktop ${crypto.randomUUID()}`);
 const relocated = path.join(testRoot, 'Relocated application');
 await mkdir(relocated, { recursive: true });
 let executable = source;
 if (installedIndex < 0) {
-  if (missingBackend) await cp(source, path.join(relocated, 'VisionStudio.exe'));
+  if (missingBackend) await cp(source, path.join(relocated, 'OpenIndustry Vision Studio.exe'));
   else await cp(path.dirname(source), relocated, { recursive: true });
-  executable = path.join(relocated, 'VisionStudio.exe');
+  executable = path.join(relocated, 'OpenIndustry Vision Studio.exe');
 }
 const environment = {};
 for (const key of ['SystemRoot', 'WINDIR', 'COMSPEC', 'TEMP', 'TMP', 'USERPROFILE', 'LOCALAPPDATA', 'APPDATA', 'PROGRAMDATA', 'PROCESSOR_ARCHITECTURE', 'PROCESSOR_IDENTIFIER']) {
@@ -62,6 +62,17 @@ try {
   page = browser.contexts()[0].pages()[0];
   await expect(page.getByRole('status')).toHaveText(missingBackend ? 'Backend Disconnected' : 'Backend Connected', { timeout: 60_000 });
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  const blobImageLoaded = await page.evaluate(async () => {
+    const bytes = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='), character => character.charCodeAt(0));
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'image/png' }));
+    try {
+      const image = new Image();
+      image.src = url;
+      await image.decode();
+      return image.naturalWidth === 1 && image.naturalHeight === 1;
+    } finally { URL.revokeObjectURL(url); }
+  });
+  expect(blobImageLoaded).toBe(true);
   const desktop = await page.evaluate(() => window.__TAURI_INTERNALS__.invoke('desktop_info'));
   expect(desktop.mode).toBe('packaged');
   if (missingBackend) {

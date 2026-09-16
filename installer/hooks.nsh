@@ -1,8 +1,8 @@
 ; Application files are installed system-wide. User data is never removed.
 !macro NSIS_HOOK_POSTINSTALL
-  CreateShortCut "$DESKTOP\VisionStudio.lnk" "$INSTDIR\VisionStudio.exe"
+  CreateShortCut "$DESKTOP\OpenIndustry Vision Studio.lnk" "$INSTDIR\OpenIndustry Vision Studio.exe"
 !macroend
 
 !macro NSIS_HOOK_POSTUNINSTALL
-  Delete "$DESKTOP\VisionStudio.lnk"
+  Delete "$DESKTOP\OpenIndustry Vision Studio.lnk"
 !macroend

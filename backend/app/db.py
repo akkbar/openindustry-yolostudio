@@ -85,6 +85,32 @@ def _migrate_model_catalog(connection: sqlite3.Connection) -> None:
     )
 
 
+def _migrate_counting_phase_28_to_31(connection: sqlite3.Connection) -> None:
+    """Persist normalized counting lines and one polygon ROI for each project."""
+    connection.execute(
+        "CREATE TABLE IF NOT EXISTS counting_lines ("
+        "id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, "
+        "name TEXT NOT NULL, start_x REAL NOT NULL, start_y REAL NOT NULL, "
+        "end_x REAL NOT NULL, end_y REAL NOT NULL, direction TEXT NOT NULL "
+        "CHECK (direction IN ('a_to_b', 'b_to_a', 'both')), enabled INTEGER NOT NULL DEFAULT 1 "
+        "CHECK (enabled IN (0, 1)), created_at TEXT NOT NULL, updated_at TEXT NOT NULL"
+        ")"
+    )
+
+
+def _migrate_rtsp_password(connection: sqlite3.Connection) -> None:
+    columns = {row["name"] for row in connection.execute("PRAGMA table_info(cameras)")}
+    if "password" not in columns:
+        connection.execute("ALTER TABLE cameras ADD COLUMN password TEXT")
+    connection.execute("CREATE INDEX IF NOT EXISTS idx_counting_lines_project ON counting_lines(project_id, created_at)")
+    connection.execute(
+        "CREATE TABLE IF NOT EXISTS project_rois ("
+        "project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE, "
+        "points TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)), updated_at TEXT NOT NULL"
+        ")"
+    )
+
+
 # Each entry upgrades the database from ``version - 1`` to ``version``.
 # Never edit a released migration; append a new one instead.
 MIGRATIONS: list[Migration] = [
@@ -246,6 +272,8 @@ MIGRATIONS: list[Migration] = [
     (7, _migrate_model_registry_phase_21),
     (8, _migrate_demo_dataset_phase_27),
     (9, _migrate_model_catalog),
+    (10, _migrate_counting_phase_28_to_31),
+    (11, _migrate_rtsp_password),
 ]
 
 SCHEMA_VERSION = MIGRATIONS[-1][0]

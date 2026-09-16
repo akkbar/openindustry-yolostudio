@@ -1,6 +1,6 @@
 # Windows packaging
 
-`npm run build:installer` creates `artifacts/VisionStudio-Setup.exe` and a SHA-256 sidecar. The English-only NSIS installer targets Windows x64 and installs for all users in `C:\Program Files\VisionStudio`. It requires administrator access and creates desktop and Start menu shortcuts plus an uninstall entry.
+`npm run build:installer` creates `artifacts/OpenIndustry-Vision-Studio-Setup.exe` and a SHA-256 sidecar. The English-only NSIS installer targets Windows x64 and installs for all users. It requires administrator access and creates desktop and Start menu shortcuts plus an uninstall entry.
 
 The payload includes the Tauri desktop, embedded React assets, the complete PyInstaller backend folder with SQLite and Pillow image codecs, the CPU Ultralytics/PyTorch/Torchvision/OpenCV runtime, the verified YOLO11 Nano base checkpoint, and Microsoft's offline WebView2 installer. Initial builds download WebView2 and NSIS tooling; installation does not need those downloads. Python, Node.js, npm, pip, Rust, and CUDA tooling are not end-user prerequisites.
 
@@ -17,7 +17,7 @@ npm run build:installer:qa
 npm run test:installer
 ```
 
-The QA config creates **Vision Studio QA**, a separate current-user installer containing the existing release executable and runtime resources. It allows an install/launch/uninstall check without elevation. It is not the production installer and does not verify `Program Files` permissions or a clean machine. Build the release first; the QA bundling command does not rebuild source code.
+The QA config creates **OpenIndustry Vision Studio QA**, a separate current-user installer containing the existing release executable and runtime resources. It allows an install/launch/uninstall check without elevation. It is not the production installer and does not verify `Program Files` permissions or a clean machine. Build the release first; the QA bundling command does not rebuild source code.
 
 The QA script refuses to overwrite an existing QA installation or desktop shortcut. Its report is `artifacts/installer-qa-report.json`; it explicitly records that production per-machine and clean-machine gates are not verified. Native tests use a local WebView2 debugging port only in the test process.
 
@@ -27,7 +27,7 @@ A clean PC/VM is not currently available; the user requested recording this gate
 
 On a fresh Windows 10/11 x64 PC/VM without development tools or WebView2:
 
-1. Transfer `VisionStudio-Setup.exe` and its matching checksum, then disconnect external networking while retaining loopback.
+1. Transfer `OpenIndustry-Vision-Studio-Setup.exe` and its matching checksum, then disconnect external networking while retaining loopback.
 2. Run the installer, approve Windows elevation, and confirm English installer screens and default `C:\Program Files\VisionStudio` destination.
 3. Launch from the desktop shortcut. Confirm no terminal appears and the dashboard reports **Backend Connected**.
 4. Visit every navigation page. In Settings, verify the English language, version, OS, processor, and `%LOCALAPPDATA%\VisionStudio` data location. Open the data and logs folders.

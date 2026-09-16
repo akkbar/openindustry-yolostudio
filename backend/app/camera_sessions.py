@@ -1,6 +1,7 @@
 """Bounded local USB-camera preview sessions with optional active-model inference."""
 
 import json
+import logging
 import threading
 import time
 import uuid
@@ -8,15 +9,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Path as FastApiPath, Query, Request, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import BaseModel, Field
 
-from app import db, model_catalog, model_registry
+from app import cameras, counting, db, events, model_catalog, model_registry, project_cameras
 from app.errors import AppError
 from app.projects import WorkspaceDep, _read
 
 
 router = APIRouter(prefix="/projects/{project_id}/cameras/usb", tags=["camera sessions"])
+rtsp_router = APIRouter(prefix="/projects/{project_id}/cameras/rtsp", tags=["camera sessions"])
 SessionStatus = Literal["starting", "running", "failed", "stopped"]
 InferenceStatus = Literal["ready", "no_active_model", "unavailable"]
 
@@ -29,18 +31,39 @@ class CameraDetection(BaseModel):
     y: float = Field(ge=0, le=1)
     width: float = Field(ge=0, le=1)
     height: float = Field(ge=0, le=1)
+    track_id: int | None = Field(default=None, ge=1)
+
+
+class CameraCounter(BaseModel):
+    line_id: str
+    line_name: str
+    count: int = Field(ge=0)
+    a_to_b: int = Field(ge=0)
+    b_to_a: int = Field(ge=0)
+
+
+class UsbCameraStartRequest(BaseModel):
+    index: int = Field(ge=0, le=9)
+    name: str = Field(min_length=1, max_length=160)
 
 
 class CameraSessionResponse(BaseModel):
     id: str
     project_id: str
-    camera_index: int
+    camera_index: int | None
+    camera_id: str | None
+    camera_name: str
+    source_type: Literal["usb", "rtsp"]
+    reconnect_count: int = Field(ge=0)
+    video_status: Literal["receiving", "black_frames"]
     status: SessionStatus
     inference_status: InferenceStatus
     active_model_id: str | None
     active_model_source: Literal["custom", "catalog", "none"]
     active_catalog_model_id: str | None
     recommended_confidence: float
+    roi_active: bool
+    counters: list[CameraCounter]
     frame_id: int
     frame_width: int | None
     frame_height: int | None
@@ -50,10 +73,12 @@ class CameraSessionResponse(BaseModel):
 
 
 def _open_capture(index: int):
-    import cv2
+    return cameras._open_capture(index)
 
-    backend = getattr(cv2, "CAP_DSHOW", None)
-    return cv2.VideoCapture(index, backend) if backend is not None else cv2.VideoCapture(index)
+
+def _open_rtsp_capture(url: str):
+    import cv2
+    return cv2.VideoCapture(url)
 
 
 def _encode_jpeg(frame) -> bytes | None:
@@ -108,13 +133,25 @@ def _infer(model, frame, class_filter: tuple[str, ...] = ()) -> list[CameraDetec
 class _CameraSession:
     id: str
     project_id: str
-    camera_index: int
+    camera_index: int | None
     active_model_id: str | None
     model_path: Path | None
     active_model_source: Literal["custom", "catalog", "none"] = "none"
     active_catalog_model_id: str | None = None
     class_filter: tuple[str, ...] = ()
     recommended_confidence: float = 0.5
+    camera_id: str | None = None
+    camera_name: str = "USB camera"
+    source_type: Literal["usb", "rtsp"] = "usb"
+    source_url: str | None = None
+    reconnect_count: int = 0
+    video_status: Literal["receiving", "black_frames"] = "receiving"
+    black_frame_count: int = 0
+    data_root: Path = field(default_factory=Path)
+    database: Path = field(default_factory=Path)
+    roi: counting.RoiConfig | None = None
+    tracker: counting.ByteTrackTracker = field(default_factory=counting.ByteTrackTracker)
+    counter: counting.CrossingCounter = field(default_factory=counting.CrossingCounter)
     status: SessionStatus = "starting"
     inference_status: InferenceStatus = "no_active_model"
     error: str | None = None
@@ -133,10 +170,13 @@ class _CameraSession:
         with self.condition:
             return CameraSessionResponse(
                 id=self.id, project_id=self.project_id, camera_index=self.camera_index,
+                camera_id=self.camera_id, camera_name=self.camera_name, source_type=self.source_type, reconnect_count=self.reconnect_count, video_status=self.video_status,
                 status=self.status, inference_status=self.inference_status,
                 active_model_id=self.active_model_id, frame_id=self.frame_id,
                 active_model_source=self.active_model_source, active_catalog_model_id=self.active_catalog_model_id,
                 recommended_confidence=self.recommended_confidence,
+                roi_active=self.roi is not None and self.roi.enabled,
+                counters=[CameraCounter.model_validate(item) for item in self.counter.snapshot()],
                 frame_width=self.frame_width, frame_height=self.frame_height, fps=self.fps,
                 detections=self.detections, error=self.error,
             )
@@ -178,18 +218,22 @@ class _CameraSession:
             self.error = message
             self.condition.notify_all()
 
+    def _connect(self):
+        if self.source_type == "rtsp":
+            return _open_rtsp_capture(self.source_url or "")
+        return _open_capture(self.camera_index)
+
+    def _wait_to_reconnect(self) -> bool:
+        self.reconnect_count += 1
+        with self.condition:
+            self.error = "The RTSP camera connection was interrupted. Reconnecting."
+            self.condition.notify_all()
+        return not self.stop_event.wait(min(5.0, 0.25 * self.reconnect_count))
+
     def _run(self) -> None:
         capture = None
+        first_frame_deadline = 0.0
         try:
-            try:
-                capture = _open_capture(self.camera_index)
-            except Exception:
-                self._fail("The selected USB camera could not be opened.")
-                return
-            self.capture = capture
-            if not capture.isOpened():
-                self._fail("The selected USB camera could not be opened.")
-                return
             model = None
             if self.model_path is not None:
                 try:
@@ -200,21 +244,77 @@ class _CameraSession:
                     self._fail("The active model could not be loaded for camera inference.")
                     return
             started = time.monotonic()
-            with self.condition:
-                self.status = "running"
-                self.condition.notify_all()
             while not self.stop_event.is_set():
+                if capture is None:
+                    try:
+                        candidate = self._connect()
+                    except Exception:
+                        candidate = None
+                    if candidate is None or not candidate.isOpened():
+                        if candidate is not None:
+                            try:
+                                candidate.release()
+                            except Exception:
+                                pass
+                        if self.source_type == "usb":
+                            self._fail("The selected USB camera could not be opened.")
+                            return
+                        if not self._wait_to_reconnect():
+                            return
+                        continue
+                    capture = candidate
+                    self.capture = capture
+                    first_frame_deadline = time.monotonic() + 3.0
+                    with self.condition:
+                        self.status = "running"
+                        self.error = None
+                        self.condition.notify_all()
                 ok, image = capture.read()
                 if not ok:
-                    self._fail("The USB camera stopped delivering frames.")
-                    return
+                    if self.source_type == "usb":
+                        self._fail("The USB camera stopped delivering frames.")
+                        return
+                    try:
+                        capture.release()
+                    except Exception:
+                        pass
+                    capture = None
+                    self.capture = None
+                    if not self._wait_to_reconnect():
+                        return
+                    continue
                 jpeg = _encode_jpeg(image)
                 if jpeg is None:
                     self._fail("The USB camera frame could not be encoded.")
                     return
+                # Several UVC cameras, including common webcam drivers, report a
+                # successful open while their first frames are still all black.
+                # Keep the preview in its loading state until a usable frame
+                # arrives, or expose a persistent black stream after three seconds.
+                if self.frame_id == 0 and float(image.mean()) <= 2.0 and time.monotonic() < first_frame_deadline:
+                    continue
                 detections = _infer(model, image, self.class_filter) if model is not None else []
+                detections = counting.filter_roi(detections, self.roi)
+                observations = self.tracker.update(detections)
+                for observation in observations:
+                    observation.detection.track_id = observation.track_id
+                crossings = self.counter.observe(observations)
+                for crossing in crossings:
+                    try:
+                        events.record_line_cross(
+                            self.database, self.data_root, self.project_id, self.camera_id,
+                            crossing.observation.detection.class_name, crossing.observation.track_id,
+                            crossing.observation.detection.confidence, crossing.count, jpeg,
+                        )
+                    except Exception:
+                        logging.exception("Could not persist camera line-cross event.")
                 elapsed = max(time.monotonic() - started, 0.001)
                 with self.condition:
+                    if float(image.mean()) <= 2.0:
+                        self.black_frame_count += 1
+                    else:
+                        self.black_frame_count = 0
+                    self.video_status = "black_frames" if self.black_frame_count >= 30 else "receiving"
                     self.frame_id += 1
                     self.frame = jpeg
                     self.frame_height, self.frame_width = image.shape[:2]
@@ -243,7 +343,7 @@ class CameraSessionManager:
         self._sessions: dict[str, _CameraSession] = {}
         self._lock = threading.Lock()
 
-    def start(self, project_id: str, camera_index: int) -> _CameraSession:
+    def start(self, project_id: str, camera_index: int | None, *, camera_id: str | None = None, camera_name: str | None = None, source_type: Literal["usb", "rtsp"] = "usb", source_url: str | None = None) -> _CameraSession:
         with db.session(self.database) as connection:
             project = _read(connection, project_id)
             active_model_id = project["active_model_id"]
@@ -270,11 +370,25 @@ class CameraSessionManager:
                 if not model_path.is_file():
                     raise AppError(409, "model_artifact_missing", "The active model checkpoint is missing. Choose another production model before starting inference.")
                 active_model_source = "custom"
-        session = _CameraSession(uuid.uuid4().hex, project_id, camera_index, active_model_id, model_path, active_model_source, active_catalog_model_id, class_filter, recommended_confidence)
+            counting_config = counting.configuration(connection, project_id)
+        session = _CameraSession(
+            uuid.uuid4().hex, project_id, camera_index, active_model_id, model_path,
+            active_model_source, active_catalog_model_id, class_filter, recommended_confidence,
+            camera_id=camera_id, camera_name=camera_name or (f"Camera {camera_index}" if camera_index is not None else "RTSP camera"), source_type=source_type, source_url=source_url, data_root=self.data_root, database=self.database,
+            roi=counting_config.roi, counter=counting.CrossingCounter(counting_config.lines),
+        )
         with self._lock:
             self._sessions[session.id] = session
         session.start()
         return session
+
+    def start_rtsp(self, project_id: str, camera_id: str) -> _CameraSession:
+        with db.session(self.database) as connection:
+            _read(connection, project_id)
+            camera = project_cameras.read_rtsp_camera(connection, project_id, camera_id)
+            source_url = _rtsp_url(camera["url"], camera["username"], camera["password"])
+            camera_name = camera["name"]
+        return self.start(project_id, None, camera_id=camera_id, camera_name=camera_name, source_type="rtsp", source_url=source_url)
 
     def get(self, project_id: str, session_id: str) -> _CameraSession:
         with self._lock:
@@ -288,6 +402,17 @@ class CameraSessionManager:
         session.stop()
         with self._lock:
             self._sessions.pop(session_id, None)
+
+    def reload_counting(self, project_id: str, session_id: str) -> _CameraSession:
+        session = self.get(project_id, session_id)
+        with db.session(self.database) as connection:
+            config = counting.configuration(connection, project_id)
+        with session.condition:
+            session.roi = config.roi
+            session.tracker = counting.ByteTrackTracker()
+            session.counter = counting.CrossingCounter(config.lines)
+            session.detections = []
+        return session
 
     def shutdown(self) -> None:
         with self._lock:
@@ -304,17 +429,55 @@ def _manager(request: Request) -> CameraSessionManager:
 SessionDep = Depends(_manager)
 
 
-@router.post("/{camera_index}/sessions", response_model=CameraSessionResponse, status_code=201)
-def start_camera_session(project_id: str, camera_index: int = FastApiPath(ge=0, le=9), manager: CameraSessionManager = SessionDep) -> CameraSessionResponse:
-    return manager.start(project_id, camera_index).snapshot()
+@router.post("/{camera_id}/sessions", response_model=CameraSessionResponse, status_code=201)
+def start_camera_session(project_id: str, camera_id: str, payload: UsbCameraStartRequest | None = None, manager: CameraSessionManager = SessionDep) -> CameraSessionResponse:
+    if payload is None:
+        # Preserve the former numeric endpoint for local clients during upgrade.
+        try:
+            camera_index = int(camera_id)
+        except ValueError as error:
+            raise AppError(422, "usb_camera_selection_invalid", "Rescan USB cameras and select a camera by name.") from error
+        if not 0 <= camera_index <= 9:
+            raise AppError(422, "usb_camera_selection_invalid", "Rescan USB cameras and select a camera by name.")
+        return manager.start(project_id, camera_index, camera_id=f"usb-{camera_index}", camera_name=f"USB camera {camera_index + 1}").snapshot()
+    return manager.start(project_id, payload.index, camera_id=camera_id, camera_name=payload.name).snapshot()
+
+
+def _rtsp_url(url: str, username: str | None, password: str | None) -> str:
+    if not username:
+        return url
+    from urllib.parse import quote, urlsplit, urlunsplit
+    parsed = urlsplit(url)
+    host = parsed.hostname or ""
+    if ":" in host and not host.startswith("["):
+        host = f"[{host}]"
+    if parsed.port:
+        host = f"{host}:{parsed.port}"
+    credentials = quote(username, safe="")
+    if password:
+        credentials = f"{credentials}:{quote(password, safe='')}"
+    return urlunsplit((parsed.scheme, f"{credentials}@{host}", parsed.path, parsed.query, parsed.fragment))
+
+
+@rtsp_router.post("/{camera_id}/sessions", response_model=CameraSessionResponse, status_code=201)
+def start_rtsp_camera_session(project_id: str, camera_id: str, manager: CameraSessionManager = SessionDep) -> CameraSessionResponse:
+    return manager.start_rtsp(project_id, camera_id).snapshot()
 
 
 @router.get("/sessions/{session_id}", response_model=CameraSessionResponse)
+@rtsp_router.get("/sessions/{session_id}", response_model=CameraSessionResponse)
 def read_camera_session(project_id: str, session_id: str, manager: CameraSessionManager = SessionDep) -> CameraSessionResponse:
     return manager.get(project_id, session_id).snapshot()
 
 
+@router.post("/sessions/{session_id}/counting/reload", response_model=CameraSessionResponse)
+@rtsp_router.post("/sessions/{session_id}/counting/reload", response_model=CameraSessionResponse)
+def reload_camera_counting(project_id: str, session_id: str, manager: CameraSessionManager = SessionDep) -> CameraSessionResponse:
+    return manager.reload_counting(project_id, session_id).snapshot()
+
+
 @router.get("/sessions/{session_id}/frame")
+@rtsp_router.get("/sessions/{session_id}/frame")
 def read_camera_frame(project_id: str, session_id: str, after: int = Query(default=0, ge=0), manager: CameraSessionManager = SessionDep):
     session = manager.get(project_id, session_id)
     frame = session.wait_for_frame(after)
@@ -332,11 +495,14 @@ def read_camera_frame(project_id: str, session_id: str, after: int = Query(defau
             "Cache-Control": "no-store",
             "X-Vision-Frame-Id": str(frame_id),
             "X-Vision-Detections": json.dumps([item.model_dump() for item in snapshot.detections], separators=(",", ":")),
+            "X-Vision-Counters": json.dumps([item.model_dump() for item in snapshot.counters], separators=(",", ":")),
+            "X-Vision-ROI-Active": "true" if snapshot.roi_active else "false",
         },
     )
 
 
 @router.delete("/sessions/{session_id}", status_code=204)
+@rtsp_router.delete("/sessions/{session_id}", status_code=204)
 def stop_camera_session(project_id: str, session_id: str, manager: CameraSessionManager = SessionDep) -> Response:
     manager.stop(project_id, session_id)
     return Response(status_code=204)

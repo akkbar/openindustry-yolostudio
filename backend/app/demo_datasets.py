@@ -106,8 +106,14 @@ def _parse_yolo_labels(data: bytes) -> list[tuple[float, float, float, float]]:
             center_x, center_y, width, height = (float(value) for value in parts[1:])
         except ValueError as error:
             raise AppError(422, "demo_dataset_labels_invalid", f"The Apple detector archive has a non-numeric YOLO label at line {line_number}.") from error
-        if class_index != 0 or not all(math.isfinite(value) for value in (center_x, center_y, width, height)) or not 0 < width <= 1 or not 0 < height <= 1 or not 0 <= center_x <= 1 or not 0 <= center_y <= 1:
+        if class_index != 0 or not all(math.isfinite(value) for value in (center_x, center_y, width, height)) or not 0 <= width <= 1 or not 0 <= height <= 1 or not 0 <= center_x <= 1 or not 0 <= center_y <= 1:
             raise AppError(422, "demo_dataset_labels_invalid", f"The Apple detector archive has an out-of-range YOLO label at line {line_number}.")
+        # AppleBBCH76 contains four exported zero-area placeholder boxes among
+        # more than 42,000 annotations. They do not describe an object and are
+        # invalid YOLO training targets, so omit them while retaining the
+        # image's remaining valid apple boxes.
+        if width == 0 or height == 0:
+            continue
         if center_x - width / 2 < 0 or center_x + width / 2 > 1 or center_y - height / 2 < 0 or center_y + height / 2 > 1:
             raise AppError(422, "demo_dataset_labels_invalid", f"The Apple detector archive has a YOLO box outside its image at line {line_number}.")
         boxes.append((center_x, center_y, width, height))
@@ -141,7 +147,7 @@ def _archive_members(source: zipfile.ZipFile) -> list[tuple[zipfile.ZipInfo, zip
             labels[stem] = info
     if len(images) != EXPECTED_IMAGES:
         raise AppError(422, "demo_dataset_incomplete", f"The Apple detector archive must contain all {EXPECTED_IMAGES:,} source images.")
-    if images.keys() != labels.keys():
+    if not images.keys() <= labels.keys():
         raise AppError(422, "demo_dataset_incomplete", "Every Apple detector image must have one matching YOLO label file.")
     return [(images[name], labels[name]) for name in sorted(images)]
 
@@ -154,7 +160,7 @@ def download_archive(root: Path, job: _Job) -> Path:
     partial = destination.with_suffix(".partial")
     partial.unlink(missing_ok=True)
     try:
-        request = urllib.request.Request(DOWNLOAD_URL, headers={"User-Agent": "VisionStudio demo dataset importer"})
+        request = urllib.request.Request(DOWNLOAD_URL, headers={"User-Agent": "OpenIndustry Vision Studio demo dataset importer"})
         with urllib.request.urlopen(request, timeout=60) as response, partial.open("xb") as output:
             total = int(response.headers.get("Content-Length", "0"))
             if total > MAX_ARCHIVE_BYTES or total not in (0, EXPECTED_ARCHIVE_BYTES):

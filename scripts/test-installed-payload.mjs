@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 
-const expected = await readFile(new URL('../artifacts/desktop/VisionStudio.exe', import.meta.url));
+const expected = await readFile(new URL('../artifacts/desktop/OpenIndustry%20Vision%20Studio.exe', import.meta.url));
 const installed = await readFile(process.argv[2]);
 // Tauri temporarily patches this marker when creating NSIS packages, then
 // restores the portable binary. Account for that one documented metadata field.

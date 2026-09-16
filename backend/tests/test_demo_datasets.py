@@ -17,12 +17,14 @@ def _image_bytes(color):
     return output.getvalue()
 
 
-def _archive(path, images=2, labels=2):
+def _archive(path, images=2, labels=2, metadata=False):
     with zipfile.ZipFile(path, "w") as target:
         for index in range(images):
             target.writestr(f"images/apple-{index}.jpg", _image_bytes((index * 30, 90, 50)))
         for index in range(labels):
             target.writestr(f"labels/apple-{index}.txt", "0 0.5 0.5 0.4 0.5\n")
+        if metadata:
+            target.writestr("labels/labels.txt", "apple\n")
 
 
 def _wait(client, status):
@@ -87,6 +89,19 @@ def test_rejects_an_incomplete_archive_without_creating_a_project(workspace):
     result = _wait(client, "failed")
     assert "matching YOLO label" in result["error"]
     assert client.get("/projects").json()["total"] == 0
+
+
+def test_ignores_the_source_class_metadata_label_file(workspace):
+    client, _, archive = workspace
+    _archive(archive, metadata=True)
+    assert client.post("/demo-datasets/apple").status_code == 202
+    result = _wait(client, "completed")
+    assert result["project_id"]
+
+
+def test_ignores_zero_area_source_placeholders_but_keeps_valid_boxes():
+    labels = demo_datasets._parse_yolo_labels(b"0 1.0 0.0 0.0 0.0\n0 0.5 0.5 0.4 0.5\n")
+    assert labels == [(0.5, 0.5, 0.4, 0.5)]
 
 
 def test_completed_demo_is_available_after_restart(workspace):

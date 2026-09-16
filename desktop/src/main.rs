@@ -91,7 +91,7 @@ fn main() {
                 .create(true)
                 .append(true)
                 .open(log_path)?;
-            writeln!(log, "Starting Vision Studio {}", env!("CARGO_PKG_VERSION"))?;
+            writeln!(log, "Starting OpenIndustry Vision Studio {}", env!("CARGO_PKG_VERSION"))?;
             let backend =
                 Backend::start(app.path().resource_dir()?, &storage).unwrap_or_else(|error| {
                     let _ = writeln!(log, "Backend startup failed: {error}");
@@ -115,7 +115,7 @@ fn main() {
             open_app_folder
         ])
         .build(tauri::generate_context!())
-        .expect("Vision Studio could not start.");
+        .expect("OpenIndustry Vision Studio could not start.");
     app.run(|app, event| {
         if matches!(event, tauri::RunEvent::Exit) {
             if let Ok(mut backend) = app.state::<Studio>().backend.lock() {

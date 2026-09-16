@@ -18,17 +18,17 @@ if (profile !== 'qa') {
     await rm(output, { recursive: true });
   }
   await mkdir(output, { recursive: true });
-  await cp(path.join(root, 'desktop/target', profile, 'VisionStudio.exe'), path.join(output, 'VisionStudio.exe'));
+  await cp(path.join(root, 'desktop/target', profile, 'OpenIndustry Vision Studio.exe'), path.join(output, 'OpenIndustry Vision Studio.exe'));
   await cp(path.join(artifacts, 'backend'), path.join(output, 'backend'), { recursive: true });
   await cp(path.join(root, 'installer/desktop-README.md'), path.join(output, 'README.md'));
   console.log(`Desktop application: ${output}`);
 }
 if (profile !== 'debug') {
   const bundle = path.join(root, 'desktop/target/release/bundle/nsis');
-  const prefix = profile === 'qa' ? 'Vision Studio QA_' : 'VisionStudio_';
+  const prefix = profile === 'qa' ? 'OpenIndustry Vision Studio QA_' : 'OpenIndustry Vision Studio_';
   const installers = (await readdir(bundle)).filter(name => name.startsWith(prefix) && name.endsWith('-setup.exe'));
   if (installers.length !== 1) throw new Error('Expected exactly one matching NSIS installer.');
-  const name = profile === 'qa' ? 'VisionStudio-QA-Setup.exe' : 'VisionStudio-Setup.exe';
+  const name = profile === 'qa' ? 'OpenIndustry-Vision-Studio-QA-Setup.exe' : 'OpenIndustry-Vision-Studio-Setup.exe';
   const destination = path.join(artifacts, name);
   await cp(path.join(bundle, installers[0]), destination);
   const digest = createHash('sha256').update(await readFile(destination)).digest('hex');

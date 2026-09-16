@@ -3,9 +3,9 @@ Target: YOLO Desktop, Open Industrial YOLO Vision Studio, Run in Windows
 About: a Platform to create YOLO model then use your connected camera (USB, RTSP, laptop etc) to run it, then post the result into industrial protocol such as OPC UA, Modbus, MC Protocol, Profinet
 
 #========================Line below updated by AI=====================
-# Vision Studio
+# OpenIndustry Vision Studio
 
-Industrial computer vision applications, from dataset to production, without writing Python. **Implemented through Phase 26: bundled desktop, offline NSIS installer, projects, image import, dataset gallery, classes, a bounding-box annotation editor, validated YOLO dataset export, a bundled CPU YOLO runtime, a verified YOLO11 Nano base checkpoint, durable training jobs, a separate CPU training worker, polling progress metrics, a project model registry with production selection, USB-camera discovery, local JPEG preview, CPU live inference, detection overlays, a full standalone packaging checkpoint, and a metadata-driven pretrained model library with shared COCO presets. Clean-Windows and elevated installation acceptance remain pending.**
+Industrial computer vision applications, from dataset to production, without writing Python. **Implemented through Phase 34: bundled desktop, offline NSIS installer, projects, image import, dataset gallery, classes, a bounding-box annotation editor, validated YOLO dataset export, a bundled CPU YOLO runtime, a verified YOLO11 Nano base checkpoint, durable training jobs, a separate CPU training worker, polling progress metrics, a project model registry with production selection, USB-camera discovery, local JPEG preview, CPU live inference, detection overlays, a full standalone packaging checkpoint, a metadata-driven pretrained model library with shared COCO presets, ByteTrack-style local tracking, persisted counting lines, live crossing counters, polygon ROI filtering, line-cross events with JPEG snapshots, and reconnecting RTSP camera preview. Clean-Windows and elevated installation acceptance remain pending.**
 
 The application always uses **English**, including errors and default content. User-entered data is preserved as entered. The source planning documents retain their original language.
 
@@ -13,7 +13,7 @@ The application always uses **English**, including errors and default content. U
 
 Read [the comparison and decisions](docs/plan-comparison.md) first. `phase-plan.md` controls execution order; `step.md` supplies feature task details; `Overall-plan.md` defines product direction. See [Phase 0 verification](docs/phase-0.md), [Phase 1 packaging evidence](docs/phase-1.md), [Phases 2–4 delivery and acceptance](docs/phases-2-4.md), [Phases 5–7 database and projects](docs/phases-5-7.md), [Phase 8 image import](docs/phase-8.md), [Phase 9 dataset gallery](docs/phase-9.md), [Phase 10 class manager](docs/phase-10.md), [Phases 11–12 annotations](docs/phases-11-12.md), [Phases 13 and 14 export and validation](docs/phases-13-14.md), and [Phase 15 runtime packaging](docs/phase-15.md). The user authorized continuation while the unavailable clean-Windows gate stays pending.
 
-See [Phase 16 base-model packaging](docs/phase-16.md) for the verified checkpoint, packaging evidence, and remaining acceptance gates.
+See [Phase 16 base-model packaging](docs/phase-16.md) for the verified checkpoint, packaging evidence, and remaining acceptance gates. See [Phases 32–34](docs/phases-32-34.md) for events, snapshots, and RTSP camera support.
 
 See [Phase 17 training-job backend](docs/phase-17.md) for the persisted job contract, migration, and worker/UI boundary.
 
@@ -25,13 +25,13 @@ See [Phase 20 training progress](docs/phase-20.md), [Phase 21 model registry](do
 
 See [Phase 23 camera preview](docs/phase-23.md), [Phase 24 live inference](docs/phase-24.md), [Phase 25 detection overlay](docs/phase-25.md), and [Phase 26 standalone checkpoint](docs/phase-26.md) for the local camera-to-detection path and packaging verification.
 
-Before continuing with later feature phases, [the Apple detector demo dataset](docs/apple-detector-demo.md) provides one complete, publicly licensed dataset for exercising the existing workflow end to end. [The model catalog](docs/model-catalog.md) documents the shared built-in presets, specialist model metadata, storage, and inference selection.
+See [Phases 27�31 tracking, counting, and ROI](docs/phases-27-31.md) for the first local counting workflow. Before continuing with later feature phases, [the Apple detector demo dataset](docs/apple-detector-demo.md) provides one complete, publicly licensed dataset for exercising the existing workflow end to end. [The model catalog](docs/model-catalog.md) documents the shared built-in presets, specialist model metadata, storage, and inference selection.
 
 ## Run the packaged application
 
-Run `artifacts/VisionStudio-Setup.exe` to install for all users in `C:\Program Files\VisionStudio` (administrator access required). It includes the backend, bundled CPU YOLO runtime, the verified YOLO11 Nano base checkpoint, frontend assets, and offline WebView2 installer. End users do not install Python, Node.js, npm, pip, Rust, or CUDA tooling.
+Run `artifacts/OpenIndustry-Vision-Studio-Setup.exe` to install for all users (administrator access required). It includes the backend, bundled CPU YOLO runtime, the verified YOLO11 Nano base checkpoint, frontend assets, and offline WebView2 installer. End users do not install Python, Node.js, npm, pip, Rust, or CUDA tooling.
 
-Alternatively, open `artifacts/desktop/VisionStudio.exe` on a Windows x64 computer with WebView2. Keep the whole `desktop` folder together, including `backend/_internal`. The portable folder does not install WebView2; the setup executable does. These are local proof-of-concept artifacts, not a signed production release.
+Alternatively, open `artifacts/desktop/OpenIndustry Vision Studio.exe` on a Windows x64 computer with WebView2. Keep the whole `desktop` folder together, including `backend/_internal`. The portable folder does not install WebView2; the setup executable does. These are local proof-of-concept artifacts, not a signed production release.
 
 ## Development on Windows
 
@@ -77,7 +77,7 @@ npm run test:desktop
 
 Stop browser development servers before running E2E tests; tests own ports 1420 and 8765. E2E tests connect to the real API, exercise failure/recovery, and verify English UI under an Indonesian browser locale. They run the backend against a per-run temporary data directory, so they never modify your own projects.
 
-`build:desktop` builds the backend and frontend, compiles a packaged debug desktop, and stages `artifacts/desktop-debug/VisionStudio.exe` with its runtime resources. Unlike `npm run dev`, packaged debug and release builds always launch the bundled backend; they never fall back to development Python.
+`build:desktop` builds the backend and frontend, compiles a packaged debug desktop, and stages `artifacts/desktop-debug/OpenIndustry Vision Studio.exe` with its runtime resources. Unlike `npm run dev`, packaged debug and release builds always launch the bundled backend; they never fall back to development Python.
 
 Build and verify the release installer:
 
@@ -89,7 +89,7 @@ npm run test:desktop -- --release --crash
 npm run test:rust
 ```
 
-The build stages `artifacts/desktop/`, `artifacts/VisionStudio-Setup.exe`, and its SHA-256 checksum. WebView2 is downloaded during the initial build and embedded for offline installation. The installer is English-only and preserves runtime data on uninstall.
+The build stages `artifacts/desktop/`, `artifacts/OpenIndustry-Vision-Studio-Setup.exe`, and its SHA-256 checksum. WebView2 is downloaded during the initial build and embedded for offline installation. The installer is English-only and preserves runtime data on uninstall.
 
 For local installation tests without administrator access:
 
@@ -168,7 +168,7 @@ Use **Annotate** on a gallery card. Choose an active class and drag on the image
 
 Use **Zoom in/out**, the mouse wheel, **Pan image**, middle-button dragging, **Fit image**, and **Reset view** to control the view. Previous/Next and A/D move through the project's image order. Delete removes the selected box; 1–9 choose the first nine classes in the list. Shortcuts ignore form controls. **Annotated N / total** counts images with saved boxes.
 
-Wait for **All changes saved** before closing. A failed save keeps the draft and blocks image navigation until retry succeeds or you confirm discarding the change. If another window changed the annotations, reload the saved version before editing again. Class creation remains in the Dataset sidebar. Use the validation and export panel below the image importer to prepare a training dataset. The Models page starts jobs, reports their persisted metrics, and lets you select a completed model for production. The Cameras page lists locally openable USB camera indexes, starts a JPEG preview, and overlays detections from the active production model.
+Wait for **All changes saved** before closing. A failed save keeps the draft and blocks image navigation until retry succeeds or you confirm discarding the change. If another window changed the annotations, reload the saved version before editing again. Class creation remains in the Dataset sidebar. Use the validation and export panel below the image importer to prepare a training dataset. The Models page starts jobs, reports their persisted metrics, and lets you select a completed model for production. The Cameras page lists locally openable USB camera indexes, saves RTSP cameras for a project, starts a JPEG preview, overlays detections from the active production model, and shows saved line-cross events with their snapshots.
 
 E2E tests use separate ports (backend 18765, frontend 11420 by default), isolated storage, and a Vite-only API proxy so an existing development session can remain running. Override `VISION_STUDIO_TEST_BACKEND_PORT` and `VISION_STUDIO_TEST_FRONTEND_PORT` if those ports are occupied. The production API's allowed origins are unchanged. Restart a running development backend after backend source changes to load the new endpoints and migrations.
 

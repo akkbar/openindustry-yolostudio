@@ -27,12 +27,13 @@ def test_usb_scan_returns_only_opened_cameras_and_releases_every_handle(client, 
         return capture
 
     monkeypatch.setattr(cameras, "_open_capture", open_capture)
+    monkeypatch.setattr(cameras, "_windows_devices", lambda: [("Receiving camera", "USB\\TEST\\01"), ("Packing camera", "USB\\TEST\\02")])
     response = client.get("/cameras/usb?limit=3")
     assert response.status_code == 200
     assert response.json() == {
         "cameras": [
-            {"id": "usb-0", "index": 0, "name": "Camera 0", "source_type": "usb"},
-            {"id": "usb-2", "index": 2, "name": "Camera 2", "source_type": "usb"},
+            {"id": cameras._camera_id("USB\\TEST\\01", 0), "index": 0, "name": "Receiving camera", "source_type": "usb"},
+            {"id": cameras._camera_id("USB\\TEST\\02", 2), "index": 2, "name": "Packing camera", "source_type": "usb"},
         ],
         "scanned": 3,
     }

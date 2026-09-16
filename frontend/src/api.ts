@@ -193,29 +193,46 @@ export const archiveRegisteredModel = (projectId: string, modelId: string) =>
 export interface UsbCamera { id: string; index: number; name: string; source_type: 'usb' }
 export const listUsbCameras = (signal?: AbortSignal) =>
   call<{ cameras: UsbCamera[]; scanned: number }>('/cameras/usb', { signal });
+export interface RtspCamera { id: string; project_id: string; name: string; source_type: 'rtsp'; url: string; username: string | null; has_password: boolean; created_at: string; updated_at: string; }
+const rtspCamerasRoute = (projectId: string) => `/projects/${encodeURIComponent(projectId)}/cameras/rtsp`;
+export const listRtspCameras = (projectId: string, signal?: AbortSignal) => call<{ cameras: RtspCamera[] }>(rtspCamerasRoute(projectId), { signal });
+export const createRtspCamera = (projectId: string, draft: Pick<RtspCamera, 'name' | 'url' | 'username'> & { password?: string }) =>
+  call<RtspCamera>(rtspCamerasRoute(projectId), { method: 'POST', body: JSON.stringify(draft) });
+export const deleteRtspCamera = (projectId: string, cameraId: string) => call<void>(`${rtspCamerasRoute(projectId)}/${encodeURIComponent(cameraId)}`, { method: 'DELETE' });
 
 export interface CameraDetection {
   class_id: number; class_name: string; confidence: number;
-  x: number; y: number; width: number; height: number;
+  x: number; y: number; width: number; height: number; track_id: number | null;
 }
+export interface CameraCounter { line_id: string; line_name: string; count: number; a_to_b: number; b_to_a: number; }
+export interface NormalizedPoint { x: number; y: number; }
+export type CountingDirection = 'a_to_b' | 'b_to_a' | 'both';
+export interface CountingLine { id: string; name: string; start: NormalizedPoint; end: NormalizedPoint; direction: CountingDirection; enabled: boolean; created_at: string; updated_at: string; }
+export interface ProjectRoi { points: NormalizedPoint[]; enabled: boolean; updated_at: string; }
+export interface CountingConfiguration { lines: CountingLine[]; roi: ProjectRoi | null; }
 export interface CameraSession {
-  id: string; project_id: string; camera_index: number;
+  id: string; project_id: string; camera_index: number | null; camera_id: string | null; camera_name: string; source_type: 'usb' | 'rtsp'; reconnect_count: number;
+  video_status: 'receiving' | 'black_frames';
   status: 'starting' | 'running' | 'failed' | 'stopped';
   inference_status: 'ready' | 'no_active_model' | 'unavailable';
-  active_model_id: string | null; active_model_source: 'custom' | 'catalog' | 'none'; active_catalog_model_id: string | null; recommended_confidence: number; frame_id: number;
+  active_model_id: string | null; active_model_source: 'custom' | 'catalog' | 'none'; active_catalog_model_id: string | null; recommended_confidence: number;
+  roi_active: boolean; counters: CameraCounter[]; frame_id: number;
   frame_width: number | null; frame_height: number | null; fps: number;
   detections: CameraDetection[]; error: string | null;
 }
-const cameraSessionsRoute = (projectId: string) => `/projects/${encodeURIComponent(projectId)}/cameras/usb`;
-export const startCameraSession = (projectId: string, cameraIndex: number) =>
-  call<CameraSession>(`${cameraSessionsRoute(projectId)}/${cameraIndex}/sessions`, { method: 'POST' });
-export const getCameraSession = (projectId: string, sessionId: string, signal?: AbortSignal) =>
-  call<CameraSession>(`${cameraSessionsRoute(projectId)}/sessions/${encodeURIComponent(sessionId)}`, { signal });
-export const stopCameraSession = (projectId: string, sessionId: string) =>
-  call<void>(`${cameraSessionsRoute(projectId)}/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' });
-export interface CameraFrame { id: number; image_url: string; detections: CameraDetection[] }
-export async function readCameraFrame(projectId: string, sessionId: string, after: number, signal?: AbortSignal): Promise<CameraFrame | null> {
-  const response = await fetch(`${await apiBase()}${cameraSessionsRoute(projectId)}/sessions/${encodeURIComponent(sessionId)}/frame?after=${after}`, { signal, headers: { Accept: 'image/jpeg' } });
+const cameraSessionsRoute = (projectId: string, source: 'usb' | 'rtsp' = 'usb') => `/projects/${encodeURIComponent(projectId)}/cameras/${source}`;
+export const startCameraSession = (projectId: string, camera: UsbCamera) =>
+  call<CameraSession>(`${cameraSessionsRoute(projectId)}/${encodeURIComponent(camera.id)}/sessions`, { method: 'POST', body: JSON.stringify({ index: camera.index, name: camera.name }) });
+export const startRtspCameraSession = (projectId: string, cameraId: string) => call<CameraSession>(`${cameraSessionsRoute(projectId, 'rtsp')}/${encodeURIComponent(cameraId)}/sessions`, { method: 'POST' });
+export const getCameraSession = (projectId: string, sessionId: string, source: 'usb' | 'rtsp' = 'usb', signal?: AbortSignal) =>
+  call<CameraSession>(`${cameraSessionsRoute(projectId, source)}/sessions/${encodeURIComponent(sessionId)}`, { signal });
+export const stopCameraSession = (projectId: string, sessionId: string, source: 'usb' | 'rtsp' = 'usb') =>
+  call<void>(`${cameraSessionsRoute(projectId, source)}/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' });
+export const reloadCameraCounting = (projectId: string, sessionId: string, source: 'usb' | 'rtsp' = 'usb') =>
+  call<CameraSession>(`${cameraSessionsRoute(projectId, source)}/sessions/${encodeURIComponent(sessionId)}/counting/reload`, { method: 'POST' });
+export interface CameraFrame { id: number; image_url: string; detections: CameraDetection[]; counters: CameraCounter[]; roi_active: boolean }
+export async function readCameraFrame(projectId: string, sessionId: string, after: number, source: 'usb' | 'rtsp' = 'usb', signal?: AbortSignal): Promise<CameraFrame | null> {
+  const response = await fetch(`${await apiBase()}${cameraSessionsRoute(projectId, source)}/sessions/${encodeURIComponent(sessionId)}/frame?after=${after}`, { signal, headers: { Accept: 'image/jpeg' } });
   if (response.status === 204) return null;
   if (!response.ok) {
     let message: string = en.apiFailure;
@@ -223,9 +240,28 @@ export async function readCameraFrame(projectId: string, sessionId: string, afte
     throw new ApiError('camera_frame_failed', message);
   }
   const header = response.headers.get('X-Vision-Detections');
+  const countersHeader = response.headers.get('X-Vision-Counters');
   let detections: CameraDetection[] = [];
+  let counters: CameraCounter[] = [];
   try { detections = header ? JSON.parse(header) as CameraDetection[] : []; } catch { /* Ignore malformed optional metadata. */ }
-  return { id: Number(response.headers.get('X-Vision-Frame-Id') ?? after + 1), image_url: URL.createObjectURL(await response.blob()), detections };
+  try { counters = countersHeader ? JSON.parse(countersHeader) as CameraCounter[] : []; } catch { /* Ignore malformed optional metadata. */ }
+  return { id: Number(response.headers.get('X-Vision-Frame-Id') ?? after + 1), image_url: URL.createObjectURL(await response.blob()), detections, counters, roi_active: response.headers.get('X-Vision-ROI-Active') === 'true' };
+}
+
+const countingRoute = (projectId: string) => `/projects/${encodeURIComponent(projectId)}/counting`;
+export const getCountingConfiguration = (projectId: string) => call<CountingConfiguration>(countingRoute(projectId));
+type CountingLineDraft = Omit<CountingLine, 'id' | 'created_at' | 'updated_at'>;
+export const createCountingLine = (projectId: string, draft: CountingLineDraft) => call<CountingLine>(`${countingRoute(projectId)}/lines`, { method: 'POST', body: JSON.stringify(draft) });
+export const updateCountingLine = (projectId: string, lineId: string, draft: CountingLineDraft) => call<CountingLine>(`${countingRoute(projectId)}/lines/${encodeURIComponent(lineId)}`, { method: 'PATCH', body: JSON.stringify(draft) });
+export const deleteCountingLine = (projectId: string, lineId: string) => call<void>(`${countingRoute(projectId)}/lines/${encodeURIComponent(lineId)}`, { method: 'DELETE' });
+export const saveProjectRoi = (projectId: string, draft: Omit<ProjectRoi, 'updated_at'>) => call<ProjectRoi>(`${countingRoute(projectId)}/roi`, { method: 'PUT', body: JSON.stringify(draft) });
+export const deleteProjectRoi = (projectId: string) => call<void>(`${countingRoute(projectId)}/roi`, { method: 'DELETE' });
+
+export interface VisionEvent { id: number; project_id: string; camera_id: string | null; event_type: string; class_name: string | null; track_id: number | null; confidence: number | null; count: number | null; snapshot_url: string | null; occurred_at: string; }
+export async function listEvents(projectId: string, signal?: AbortSignal): Promise<{ events: VisionEvent[]; total: number }> {
+  const result = await call<{ events: VisionEvent[]; total: number }>(`/projects/${encodeURIComponent(projectId)}/events?limit=20`, { signal });
+  const base = await apiBase();
+  return { ...result, events: result.events.map(event => ({ ...event, snapshot_url: event.snapshot_url ? `${base}${event.snapshot_url}` : null })) };
 }
 
 export interface DatasetValidation {

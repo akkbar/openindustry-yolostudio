@@ -1,14 +1,14 @@
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
-$installer = Join-Path $projectRoot 'artifacts\VisionStudio-QA-Setup.exe'
+$installer = Join-Path $projectRoot 'artifacts\OpenIndustry-Vision-Studio-QA-Setup.exe'
 if (-not (Test-Path -LiteralPath $installer)) { throw 'Run npm run build:installer:qa first.' }
-$desktopShortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Vision Studio QA.lnk'
+$desktopShortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) 'OpenIndustry Vision Studio QA.lnk'
 $uninstallRoots = @('HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall', 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall')
 function Get-QaRegistration {
-    @($uninstallRoots | ForEach-Object { Get-ItemProperty -Path "$_\*" -ErrorAction SilentlyContinue } | Where-Object { $_.DisplayName -eq 'Vision Studio QA' })
+    @($uninstallRoots | ForEach-Object { Get-ItemProperty -Path "$_\*" -ErrorAction SilentlyContinue } | Where-Object { $_.DisplayName -eq 'OpenIndustry Vision Studio QA' })
 }
 if (@(Get-QaRegistration).Count -gt 0 -or (Test-Path -LiteralPath $desktopShortcut)) {
-    throw 'An existing Vision Studio QA installation or shortcut was found. The test will not overwrite it.'
+    throw 'An existing OpenIndustry Vision Studio QA installation or shortcut was found. The test will not overwrite it.'
 }
 $qaRoot = Join-Path $env:LOCALAPPDATA ('VisionStudio\qa\Installer ' + [Guid]::NewGuid().ToString('N'))
 $target = Join-Path $qaRoot 'Installed application'
@@ -38,7 +38,7 @@ function Run-Setup([string]$Executable, [string]$Arguments) {
 
 try {
     Assert-Installer ((Run-Setup $installer "/S /D=$target") -eq 0) 'Silent per-user installation succeeds without elevation.'
-    $app = Join-Path $target 'VisionStudio.exe'
+    $app = Join-Path $target 'OpenIndustry Vision Studio.exe'
     Assert-Installer (Test-Path -LiteralPath $app) 'The desktop executable is installed.'
     Assert-Installer (Test-Path -LiteralPath (Join-Path $target 'backend\backend.exe')) 'The backend executable is installed.'
     Assert-Installer (Test-Path -LiteralPath (Join-Path $target 'backend\_internal\python310.dll')) 'The bundled Python runtime is installed.'

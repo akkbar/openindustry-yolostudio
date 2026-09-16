@@ -1,6 +1,6 @@
-# Vision Studio desktop preview
+# OpenIndustry Vision Studio desktop preview
 
-Open `VisionStudio.exe`. Keep the `backend` folder next to it, including its entire `_internal` directory. No Python or Node installation is needed. This portable folder requires Microsoft Edge WebView2 already installed; the Windows setup executable includes its offline installer.
+Open `OpenIndustry Vision Studio.exe`. Keep the `backend` folder next to it, including its entire `_internal` directory. No Python or Node installation is needed. This portable folder requires Microsoft Edge WebView2 already installed; the Windows setup executable includes its offline installer.
 
 The desktop launches its own local backend, waits for readiness, and then opens the English application interface. The backend includes the Phase 15 CPU YOLO runtime, the Phase 16 verified YOLO11 Nano checkpoint, and the Phase 18 separate training-worker capability. Its settings live under `%LOCALAPPDATA%\VisionStudio\vision-runtime`; the checkpoint is provisioned at `%LOCALAPPDATA%\VisionStudio\models\base\yolo11n.pt`, and the application does not download additional models. Closing the window stops that backend and any worker it owns. Application data and logs live under `%LOCALAPPDATA%\VisionStudio`. A failed backend produces an English error in the interface and diagnostic logs instead of connecting to another service.
 

@@ -144,6 +144,18 @@ try {
     Assert-Check ($catalogSelection.model.id -eq 'bottle-detection' -and $catalogSelection.settings.confidence -eq 0.35) 'The packaged backend stores a built-in catalog selection with its recommended inference setting.'
     $storedCatalogSelection = Invoke-RestMethod "$baseUrl/model-catalog/projects/$($created.id)/selection" -TimeoutSec 5
     Assert-Check ($storedCatalogSelection.model.id -eq 'bottle-detection' -and $storedCatalogSelection.settings.class_filter.Count -eq 1 -and $storedCatalogSelection.settings.class_filter[0] -eq 'bottle') 'The packaged backend persists the catalog class filter.'
+    $countingLine = Invoke-RestMethod "$baseUrl/projects/$($created.id)/counting/lines" -Method Post -ContentType 'application/json' -Body '{"name":"Bundle count","start":{"x":0.1,"y":0.5},"end":{"x":0.9,"y":0.5},"direction":"both"}' -TimeoutSec 5
+    Assert-Check ($countingLine.name -eq 'Bundle count' -and $countingLine.start.x -eq 0.1 -and $countingLine.end.y -eq 0.5) 'The packaged backend persists normalized counting-line coordinates.'
+    $roi = Invoke-RestMethod "$baseUrl/projects/$($created.id)/counting/roi" -Method Put -ContentType 'application/json' -Body '{"points":[{"x":0.1,"y":0.1},{"x":0.9,"y":0.1},{"x":0.5,"y":0.9}]}' -TimeoutSec 5
+    Assert-Check ($roi.enabled -eq $true -and $roi.points.Count -eq 3) 'The packaged backend persists a polygon ROI.'
+    $counting = Invoke-RestMethod "$baseUrl/projects/$($created.id)/counting" -TimeoutSec 5
+    Assert-Check ($counting.lines.Count -eq 1 -and $counting.roi.points.Count -eq 3) 'The packaged backend reads persisted counting configuration.'
+    $rtspCamera = Invoke-RestMethod "$baseUrl/projects/$($created.id)/cameras/rtsp" -Method Post -ContentType 'application/json' -Body '{"name":"Bundle RTSP","url":"rtsp://camera.local/live","username":"operator","password":"not-returned"}' -TimeoutSec 5
+    Assert-Check ($rtspCamera.source_type -eq 'rtsp' -and $rtspCamera.has_password -and -not ($rtspCamera.PSObject.Properties.Name -contains 'password')) 'The packaged backend stores an RTSP camera without exposing its password.'
+    $rtspCameras = Invoke-RestMethod "$baseUrl/projects/$($created.id)/cameras/rtsp" -TimeoutSec 5
+    Assert-Check ($rtspCameras.cameras.Count -eq 1 -and $rtspCameras.cameras[0].id -eq $rtspCamera.id) 'The packaged backend lists saved RTSP cameras.'
+    $events = Invoke-RestMethod "$baseUrl/projects/$($created.id)/events" -TimeoutSec 5
+    Assert-Check ($events.total -eq 0 -and $events.events.Count -eq 0) 'The packaged backend exposes the project event list before a line crossing occurs.'
     $trainingJobsUrl = "$baseUrl/projects/$($created.id)/training-jobs"
     $queuedJob = Invoke-RestMethod $trainingJobsUrl -Method Post -ContentType 'application/json' -Body '{"epochs":3,"imgsz":320}' -TimeoutSec 5
     Assert-Check ($queuedJob.status -eq 'queued' -and $queuedJob.model -eq 'yolo11n' -and $queuedJob.epochs -eq 3 -and $queuedJob.imgsz -eq 320 -and $queuedJob.progress -eq 0 -and $null -eq $queuedJob.started_at -and $null -eq $queuedJob.finished_at) 'The packaged backend queues a persisted training job before starting a worker.'
@@ -152,7 +164,7 @@ try {
     $registeredModels = Invoke-RestMethod "$baseUrl/projects/$($created.id)/models" -TimeoutSec 5
     Assert-Check ($null -eq $registeredModels.active_model_id -and @($registeredModels.models).Count -eq 0) 'The packaged backend exposes an empty project model registry before training completes.'
     $cameras = Invoke-RestMethod "$baseUrl/cameras/usb?limit=1" -TimeoutSec 10
-    Assert-Check ($cameras.scanned -eq 1 -and @($cameras.cameras).Count -le 1 -and @($cameras.cameras | Where-Object { $_.id -notmatch '^usb-[0-9]+$' -or $_.name -notmatch '^Camera [0-9]+$' }).Count -eq 0) 'The packaged backend scans a bounded USB-camera range and returns stable camera identities.'
+    Assert-Check ($cameras.scanned -eq 1 -and @($cameras.cameras).Count -le 1 -and @($cameras.cameras | Where-Object { $_.id -notmatch '^usb-[0-9a-f]{16}$' -or [string]::IsNullOrWhiteSpace($_.name) }).Count -eq 0) 'The packaged backend scans a bounded USB-camera range and returns stable named camera identities.'
     $startedJob = Invoke-RestMethod "$trainingJobsUrl/$($queuedJob.id)/start" -Method Post -TimeoutSec 5
     Assert-Check ($startedJob.status -eq 'running' -and $null -ne $startedJob.started_at) 'The packaged backend starts a claimed training job in a worker process.'
     Assert-Check ((Invoke-RestMethod "$baseUrl/health" -TimeoutSec 5).status -eq 'ok') 'The packaged API remains responsive while the training worker starts.'
@@ -225,7 +237,7 @@ try {
     $denied = Invoke-WebRequest "$baseUrl/health" -UseBasicParsing -Headers @{ Origin = 'https://untrusted.example' }
     Assert-Check (-not $denied.Headers['Access-Control-Allow-Origin']) 'Untrusted CORS origins are not allowed.'
     $schema = Invoke-RestMethod "$baseUrl/openapi.json" -TimeoutSec 3
-    Assert-Check ($schema.info.title -eq 'Vision Studio API' -and $null -ne $schema.paths.'/system/info' -and $null -ne $schema.paths.'/projects/{project_id}/cameras/usb/{camera_index}/sessions') 'The packaged API schema includes the local camera preview and inference session endpoint.'
+    Assert-Check ($schema.info.title -eq 'OpenIndustry Vision Studio API' -and $null -ne $schema.paths.'/system/info' -and $null -ne $schema.paths.'/projects/{project_id}/cameras/usb/{camera_id}/sessions' -and $null -ne $schema.paths.'/projects/{project_id}/cameras/rtsp/{camera_id}/sessions' -and $null -ne $schema.paths.'/projects/{project_id}/events') 'The packaged API schema includes named USB and RTSP preview plus project event endpoints.'
 
     $collision = Start-Bundle "--port $port"
     Assert-Check ($collision.Process.WaitForExit(10000)) 'A second backend exits when its port is occupied.'
