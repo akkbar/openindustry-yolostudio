@@ -82,8 +82,9 @@ export default function Projects() {
         <dl><dt>{copy.storage}</dt><dd className="project-path">{selected.storage_path}</dd></dl>
         <p>{copy.workspaceDetail}</p>
         <button className="ghost-button" onClick={() => { window.location.hash = `Dataset/${selected.id}`; }}>{en.gallery.openGallery}</button>
+        <button className="ghost-button" onClick={() => { window.location.hash = `Models/${selected.id}`; }}>{en.models.training.openTraining}</button>
         <ImageImport key={selected.id} projectId={selected.id} />
-        <div className="workflow-grid">{(['Models', 'Cameras', 'Runtime'] as const).map(page => <article className="workflow-card" key={page}>
+        <div className="workflow-grid">{(['Cameras', 'Runtime'] as const).map(page => <article className="workflow-card" key={page}>
           <h3>{en.navigation[page]}</h3><p>{en.pageDetails[page]}</p><span className="planned">{en.planned}</span>
         </article>)}</div>
       </>}

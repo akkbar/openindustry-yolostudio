@@ -20,11 +20,16 @@ assert sys.platform == "win32" and struct.calcsize("P") == 8 and sys.version_inf
     if ($LASTEXITCODE -ne 0) { throw 'Backend build dependency installation failed.' }
 
     $previousCache = $env:PYINSTALLER_CONFIG_DIR
+    $previousYoloAutoInstall = $env:YOLO_AUTOINSTALL
     $env:PYINSTALLER_CONFIG_DIR = Join-Path $buildRoot 'cache'
+    $env:YOLO_AUTOINSTALL = 'False'
     try {
         & $buildPython -m PyInstaller --noconfirm --clean --distpath $bundleRoot --workpath (Join-Path $buildRoot 'work') backend/packaging/backend.spec
         if ($LASTEXITCODE -ne 0) { throw 'Backend executable build failed.' }
-    } finally { $env:PYINSTALLER_CONFIG_DIR = $previousCache }
+    } finally {
+        $env:PYINSTALLER_CONFIG_DIR = $previousCache
+        $env:YOLO_AUTOINSTALL = $previousYoloAutoInstall
+    }
 
     $output = Join-Path $bundleRoot 'backend'
     Copy-Item -LiteralPath 'installer\backend-poc-README.md' -Destination (Join-Path $bundleRoot 'README.md') -Force
@@ -43,7 +48,7 @@ assert sys.platform == "win32" and struct.calcsize("P") == 8 and sys.version_inf
     })
     $manifest = [ordered]@{
         product = 'Vision Studio Backend'
-        phase = 1
+        phase = 18
         version = '0.1.0'
         platform = 'windows-x64'
         packaging = 'PyInstaller one-directory'

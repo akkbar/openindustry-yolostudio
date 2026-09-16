@@ -24,7 +24,22 @@ export interface SystemInfo {
   data_directory: string;
   database_path: string;
   database_schema_version: number;
+  base_model: BaseModel;
   language: 'en';
+}
+
+export interface BaseModel {
+  status: 'ready';
+  id: 'yolo11n';
+  display_name: 'YOLO11 Nano';
+  task: 'object_detection';
+  file_name: 'yolo11n.pt';
+  path: string;
+  byte_size: number;
+  sha256: string;
+  distribution: 'bundled';
+  load_verified: boolean;
+  license: string;
 }
 
 export interface Project {
@@ -90,6 +105,38 @@ export const updateProject = (id: string, draft: Partial<ProjectDraft>) =>
 
 export const deleteProject = (id: string) =>
   call<void>(`/projects/${encodeURIComponent(id)}`, { method: 'DELETE' });
+
+export type TrainingJobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+export interface TrainingJob {
+  id: string;
+  project_id: string;
+  status: TrainingJobStatus;
+  model: 'yolo11n';
+  epochs: number;
+  imgsz: number;
+  device: 'auto';
+  progress: number;
+  metrics: Record<string, number> | null;
+  created_at: string;
+  updated_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  error: string | null;
+}
+export interface TrainingJobDraft {
+  model: 'yolo11n';
+  epochs: number;
+  imgsz: number;
+}
+
+const trainingJobsRoute = (projectId: string) =>
+  `/projects/${encodeURIComponent(projectId)}/training-jobs`;
+
+export const createTrainingJob = (projectId: string, draft: TrainingJobDraft) =>
+  call<TrainingJob>(trainingJobsRoute(projectId), { method: 'POST', body: JSON.stringify(draft) });
+
+export const startTrainingJob = (projectId: string, jobId: string) =>
+  call<TrainingJob>(`${trainingJobsRoute(projectId)}/${encodeURIComponent(jobId)}/start`, { method: 'POST' });
 
 export interface DatasetValidation {
   valid: boolean; images: number; annotations: number; classes: number; issue_count: number;

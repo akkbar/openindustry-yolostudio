@@ -8,15 +8,42 @@ Phases 1-3.
 
 import sqlite3
 import time
+from collections.abc import Callable
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
 DATABASE_FILE = "visionstudio.db"
 
+Migration = tuple[int, tuple[str, ...] | Callable[[sqlite3.Connection], None]]
+
+
+def _migrate_training_jobs_phase_17(connection: sqlite3.Connection) -> None:
+    """Name the predeclared job columns for the public Phase 17 contract.
+
+    Earlier migration tests deliberately rewind only the schema pieces they
+    exercise. Check the live columns so their already-upgraded job table is
+    not renamed a second time when that simulated version is reopened.
+    """
+    columns = {
+        row["name"] for row in connection.execute("PRAGMA table_info(training_jobs)")
+    }
+    if "base_model" in columns:
+        connection.execute("ALTER TABLE training_jobs RENAME COLUMN base_model TO model")
+    if "image_size" in columns:
+        connection.execute("ALTER TABLE training_jobs RENAME COLUMN image_size TO imgsz")
+    if "updated_at" not in columns:
+        connection.execute("ALTER TABLE training_jobs ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''")
+    connection.execute("UPDATE training_jobs SET updated_at = created_at WHERE updated_at = ''")
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_training_jobs_project_created "
+        "ON training_jobs(project_id, created_at DESC, id DESC)"
+    )
+
+
 # Each entry upgrades the database from ``version - 1`` to ``version``.
 # Never edit a released migration; append a new one instead.
-MIGRATIONS: list[tuple[int, tuple[str, ...]]] = [
+MIGRATIONS: list[Migration] = [
     (
         1,
         (
@@ -171,6 +198,7 @@ MIGRATIONS: list[tuple[int, tuple[str, ...]]] = [
     (5, (
         "ALTER TABLE images ADD COLUMN annotation_revision INTEGER NOT NULL DEFAULT 0",
     )),
+    (6, _migrate_training_jobs_phase_17),
 ]
 
 SCHEMA_VERSION = MIGRATIONS[-1][0]
@@ -248,7 +276,10 @@ def initialize_database(root: Path) -> Path:
         for target, statements in MIGRATIONS:
             if target <= version:
                 continue
-            for statement in statements:
-                connection.execute(statement)
+            if callable(statements):
+                statements(connection)
+            else:
+                for statement in statements:
+                    connection.execute(statement)
             connection.execute(f"PRAGMA user_version = {target}")
     return path

@@ -5,17 +5,25 @@ About: a Platform to create YOLO model then use your connected camera (USB, RTSP
 #========================Line below updated by AI=====================
 # Vision Studio
 
-Industrial computer vision applications, from dataset to production, without writing Python. **Implemented through Phase 14: bundled desktop, offline NSIS installer, projects, image import, dataset gallery, classes, and a bounding-box annotation editor with saved geometry, image navigation, and shortcuts, plus validated YOLO dataset export. Clean-Windows and elevated installation acceptance remain pending.**
+Industrial computer vision applications, from dataset to production, without writing Python. **Implemented through Phase 19: bundled desktop, offline NSIS installer, projects, image import, dataset gallery, classes, a bounding-box annotation editor, validated YOLO dataset export, a bundled CPU YOLO runtime, a verified YOLO11 Nano base checkpoint, durable training-job records, a separate CPU training worker, and a GUI training launcher. Training progress, model registry, and camera access remain later phases. Clean-Windows and elevated installation acceptance remain pending.**
 
 The application always uses **English**, including errors and default content. User-entered data is preserved as entered. The source planning documents retain their original language.
 
 ## Planning
 
-Read [the comparison and decisions](docs/plan-comparison.md) first. `phase-plan.md` controls execution order; `step.md` supplies feature task details; `Overall-plan.md` defines product direction. See [Phase 0 verification](docs/phase-0.md), [Phase 1 packaging evidence](docs/phase-1.md), [Phases 2–4 delivery and acceptance](docs/phases-2-4.md), [Phases 5–7 database and projects](docs/phases-5-7.md), [Phase 8 image import](docs/phase-8.md), [Phase 9 dataset gallery](docs/phase-9.md), [Phase 10 class manager](docs/phase-10.md), and [Phases 11–12 annotations](docs/phases-11-12.md). The user authorized continuation while the unavailable clean-Windows gate stays pending. See [Phases 13 and 14 export and validation](docs/phases-13-14.md). Phase 15 has not started.
+Read [the comparison and decisions](docs/plan-comparison.md) first. `phase-plan.md` controls execution order; `step.md` supplies feature task details; `Overall-plan.md` defines product direction. See [Phase 0 verification](docs/phase-0.md), [Phase 1 packaging evidence](docs/phase-1.md), [Phases 2–4 delivery and acceptance](docs/phases-2-4.md), [Phases 5–7 database and projects](docs/phases-5-7.md), [Phase 8 image import](docs/phase-8.md), [Phase 9 dataset gallery](docs/phase-9.md), [Phase 10 class manager](docs/phase-10.md), [Phases 11–12 annotations](docs/phases-11-12.md), [Phases 13 and 14 export and validation](docs/phases-13-14.md), and [Phase 15 runtime packaging](docs/phase-15.md). The user authorized continuation while the unavailable clean-Windows gate stays pending.
+
+See [Phase 16 base-model packaging](docs/phase-16.md) for the verified checkpoint, packaging evidence, and remaining acceptance gates.
+
+See [Phase 17 training-job backend](docs/phase-17.md) for the persisted job contract, migration, and worker/UI boundary.
+
+See [Phase 18 training worker](docs/phase-18.md) for the separate-process lifecycle, local training inputs and outputs, and verification evidence.
+
+See [Phase 19 training UI](docs/phase-19.md) for the Models-page launcher, validation, retry behavior, and browser verification.
 
 ## Run the packaged application
 
-Run `artifacts/VisionStudio-Setup.exe` to install for all users in `C:\Program Files\VisionStudio` (administrator access required). It includes the backend, Python runtime, frontend assets, and offline WebView2 installer. End users do not install Python, Node.js, npm, pip, or Rust.
+Run `artifacts/VisionStudio-Setup.exe` to install for all users in `C:\Program Files\VisionStudio` (administrator access required). It includes the backend, bundled CPU YOLO runtime, the verified YOLO11 Nano base checkpoint, frontend assets, and offline WebView2 installer. End users do not install Python, Node.js, npm, pip, Rust, or CUDA tooling.
 
 Alternatively, open `artifacts/desktop/VisionStudio.exe` on a Windows x64 computer with WebView2. Keep the whole `desktop` folder together, including `backend/_internal`. The portable folder does not install WebView2; the setup executable does. These are local proof-of-concept artifacts, not a signed production release.
 
@@ -53,6 +61,7 @@ Open `http://127.0.0.1:1420`. The browser uses port 8765 for the API. `.env.exam
 ```powershell
 npm run build
 npm run test:backend
+npm run test:backend-bundle
 npx playwright install chromium
 npm run test:e2e
 npm run check:desktop
@@ -85,7 +94,7 @@ npm run test:installer
 
 The distinctly named QA installer packages the existing release payload for the current user. The test installs into a unique QA directory, checks its shortcut and uninstall registration, runs the installed desktop, uninstalls it, and checks data preservation. This does not verify the production installer's elevated path or a clean machine. See the [installer instructions](installer/README.md).
 
-## Backend executable (Phase 1)
+## Backend executable, YOLO runtime, base model, job backend, and worker (Phases 1, 15-18)
 
 Build and test on Windows x64 with Python 3.10 available to the developer:
 
@@ -106,7 +115,7 @@ artifacts/VisionStudio-Backend-0.1.0-windows-x64.zip.sha256
 
 Run `artifacts\backend\backend.exe --port 8765` to serve the API independently of the development virtual environment. Distribute the entire ZIP or backend folder; the executable requires the adjacent `_internal` directory. The ZIP also contains a PowerShell QA script requiring no Python/Node installation. See [the included instructions](installer/backend-poc-README.md) for clean-machine testing.
 
-The local smoke test relocates the bundle, sanitizes its environment, checks loaded runtime DLLs and English API responses, and validates startup, shutdown, and port failures. It keeps JSON evidence and logs under `%LOCALAPPDATA%\VisionStudio\qa`. A passing local test does not close the clean-Windows gate.
+The local smoke test relocates the bundle, sanitizes its environment, checks loaded runtime DLLs and English API responses, verifies the bundled Ultralytics, PyTorch, Torchvision, and OpenCV runtime, loads the pinned YOLO11 Nano checkpoint, confirms its provisioned local copy and that no additional model is downloaded, then starts an intentionally invalid job in a second bundled worker process while the API remains responsive. It verifies the persisted failure, worker log, queue cancellation, startup, shutdown, and port failures. It keeps JSON evidence and logs under `%LOCALAPPDATA%\VisionStudio\qa`. A passing local test does not close the clean-Windows gate.
 
 ## Repository
 
@@ -121,13 +130,13 @@ docs/         Planning decisions and phase evidence
 tests/        Browser integration tests
 ```
 
-Runtime storage defaults to `%LOCALAPPDATA%\VisionStudio\`, with `data`, `projects`, `logs`, and `webview` directories. The workspace database is `data/visionstudio.db`; each project owns `projects/{project-id}/` with `dataset`, `models`, `runs`, and `events` subfolders. Backend logs rotate under `logs/backend.log`; WebView2 keeps its cache in `webview`. No runtime files are written into the installation directory.
+Runtime storage defaults to `%LOCALAPPDATA%\VisionStudio\`, with `data`, `projects`, `logs`, `webview`, `vision-runtime`, and `models/base` directories. The workspace database is `data/visionstudio.db`; each project owns `projects/{project-id}/` with `dataset`, `models`, `runs`, and `events` subfolders. Backend logs rotate under `logs/backend.log`, while child-worker output is stored at `logs/training-workers/{job-id}.log`; WebView2 keeps its cache in `webview`; Ultralytics and Matplotlib configuration live in `vision-runtime`; the verified YOLO11 Nano checkpoint is provisioned in `models/base`. No runtime files are written into the installation directory.
 
 `test:desktop` starts the built desktop app, inspects its actual WebView2, checks backend connectivity, closes the window through Tauri, and verifies that the API stops. It enables a local debug port only for that test process; normal launches do not enable remote debugging. Desktop shutdown closes a lifetime pipe so both the Windows Python redirector and its backend process exit.
 
-The API exposes `GET /health`, `GET /system/info`, project management on `/projects`, and OpenAPI documentation at `/docs`. It binds to `127.0.0.1` only. Failures use one English envelope, `{"error": {"code", "message"}}`.
+The API exposes `GET /health`, `GET /system/info`, the read-only base-model status on `/models/base`, project management on `/projects`, and persisted training jobs on `/projects/{project-id}/training-jobs`. `POST /projects/{project-id}/training-jobs/{job-id}/start` returns `202 Accepted` after launching a separate worker process; it never runs Ultralytics inside the API request. OpenAPI documentation is available at `/docs`. The API binds to `127.0.0.1` only. Failures use one English envelope, `{"error": {"code", "message"}}`.
 
-The workspace database is created on first start using the standard library `sqlite3` module, so no database server is involved. Schema changes are append-only migrations keyed to `PRAGMA user_version`; a database written by a newer application version is refused rather than downgraded. Phase 8 uses Pillow 12.3.0 for image validation and thumbnails. AI runtime, model download, and camera access remain planned.
+The workspace database is created on first start using the standard library `sqlite3` module, so no database server is involved. Schema changes are append-only migrations keyed to `PRAGMA user_version`; a database written by a newer application version is refused rather than downgraded. Phase 8 uses Pillow 12.3.0 for image validation and thumbnails. Phase 15 bundles the CPU AI runtime; Phase 16 provisions the verified offline base model; Phase 17 persists training-job configuration and lifecycle state; Phase 18 executes each started job in its own CPU worker process; Phase 19 starts that job from the Models page. Training progress, model registry, and camera access remain planned.
 
 ## Import images
 
@@ -153,7 +162,7 @@ Use **Annotate** on a gallery card. Choose an active class and drag on the image
 
 Use **Zoom in/out**, the mouse wheel, **Pan image**, middle-button dragging, **Fit image**, and **Reset view** to control the view. Previous/Next and A/D move through the project's image order. Delete removes the selected box; 1–9 choose the first nine classes in the list. Shortcuts ignore form controls. **Annotated N / total** counts images with saved boxes.
 
-Wait for **All changes saved** before closing. A failed save keeps the draft and blocks image navigation until retry succeeds or you confirm discarding the change. If another window changed the annotations, reload the saved version before editing again. Class creation remains in the Dataset sidebar. Use the validation and export panel below the image importer to prepare a training dataset. Training remains planned for Phase 15 onward.
+Wait for **All changes saved** before closing. A failed save keeps the draft and blocks image navigation until retry succeeds or you confirm discarding the change. If another window changed the annotations, reload the saved version before editing again. Class creation remains in the Dataset sidebar. Use the validation and export panel below the image importer to prepare a training dataset. The Models page shows the verified bundled checkpoint and starts a job for a selected project; training progress and camera features remain later phases.
 
 E2E tests use separate ports (backend 18765, frontend 11420 by default), isolated storage, and a Vite-only API proxy so an existing development session can remain running. Override `VISION_STUDIO_TEST_BACKEND_PORT` and `VISION_STUDIO_TEST_FRONTEND_PORT` if those ports are occupied. The production API's allowed origins are unchanged. Restart a running development backend after backend source changes to load the new endpoints and migrations.
 

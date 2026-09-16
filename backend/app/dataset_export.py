@@ -8,6 +8,7 @@ import random
 import shutil
 import uuid
 from collections import defaultdict
+from pathlib import Path
 
 from fastapi import APIRouter
 from PIL import Image, ImageOps
@@ -15,7 +16,7 @@ from PIL import Image, ImageOps
 from app import db, storage
 from app.errors import AppError
 from app.image_import import image_path
-from app.projects import WorkspaceDep, _read, _now
+from app.projects import Workspace, WorkspaceDep, _read, _now
 
 router = APIRouter(prefix="/projects/{project_id}/datasets", tags=["dataset export"])
 SEED = 42
@@ -127,8 +128,9 @@ def validate_dataset(project_id: str, space: WorkspaceDep):
     return report
 
 
-@router.post('/export')
-def export_dataset(project_id: str, space: WorkspaceDep):
+def export_dataset_snapshot(project_id: str, data_root: Path, database: Path):
+    """Create one immutable export that a worker can consume without HTTP."""
+    space = Workspace(data_root=data_root, database=database)
     # Serialize against annotation edits, imports and deletion until all files are copied.
     with db.transaction(space.database) as connection:
         _read(connection, project_id)
@@ -161,3 +163,8 @@ def export_dataset(project_id: str, space: WorkspaceDep):
         finally:
             if staging.exists():
                 shutil.rmtree(staging)
+
+
+@router.post('/export')
+def export_dataset(project_id: str, space: WorkspaceDep):
+    return export_dataset_snapshot(project_id, space.data_root, space.database)

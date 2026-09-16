@@ -44,7 +44,10 @@ WorkspaceDep = Annotated[Workspace, Depends(workspace)]
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    # Gallery and annotation navigation use this as their stable creation order.
+    # Millisecond precision can collide during a multi-file import, leaving the
+    # UUID tie-breaker to reorder images unpredictably between pages.
+    return datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
 def _clean_name(value: str) -> str:
@@ -223,6 +226,16 @@ def delete_project(project_id: str, space: WorkspaceDep) -> Response:
     try:
         with db.transaction(space.database) as connection:
             _read(connection, project_id)
+            active_training = connection.execute(
+                "SELECT 1 FROM training_jobs WHERE project_id = ? AND status = 'running'",
+                (project_id,),
+            ).fetchone()
+            if active_training:
+                raise AppError(
+                    status.HTTP_409_CONFLICT,
+                    "project_training_active",
+                    "A training job is still running. Cancel it and wait for the worker to stop before deleting this project.",
+                )
             # Renaming the folder is reversible if the database commit fails.
             # A Windows lock that prevents renaming leaves the project intact.
             storage.stage_project_deletion(space.data_root, project_id)

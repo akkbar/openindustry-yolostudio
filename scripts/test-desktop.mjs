@@ -2,6 +2,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { cp, mkdir, writeFile, readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -55,11 +56,11 @@ try {
   await expect.poll(async () => {
     try { return (await fetch(`http://127.0.0.1:${port}/json/version`, { signal: AbortSignal.timeout(1000) })).ok; }
     catch { return false; }
-  }, { timeout: 35_000 }).toBe(true);
+  }, { timeout: 60_000 }).toBe(true);
   browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
   await expect.poll(() => browser.contexts()[0].pages().length).toBeGreaterThan(0);
   page = browser.contexts()[0].pages()[0];
-  await expect(page.getByRole('status')).toHaveText(missingBackend ? 'Backend Disconnected' : 'Backend Connected', { timeout: 20_000 });
+  await expect(page.getByRole('status')).toHaveText(missingBackend ? 'Backend Disconnected' : 'Backend Connected', { timeout: 60_000 });
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   const desktop = await page.evaluate(() => window.__TAURI_INTERNALS__.invoke('desktop_info'));
   expect(desktop.mode).toBe('packaged');
@@ -68,6 +69,22 @@ try {
   } else {
     backendUrl = await page.evaluate(() => window.__TAURI_INTERNALS__.invoke('backend_url'));
     expect(new URL(backendUrl).hostname).toBe('127.0.0.1');
+    const systemInfo = await (await fetch(backendUrl + '/system/info')).json();
+    expect(systemInfo.vision_runtime).toEqual({
+      status: 'ready',
+      ultralytics_version: '8.4.153',
+      torch_version: '2.14.0+cpu',
+      torchvision_version: '0.29.0+cpu',
+      opencv_version: '5.0.0',
+    });
+    expect(systemInfo.base_model).toMatchObject({
+      status: 'ready', id: 'yolo11n', display_name: 'YOLO11 Nano', task: 'object_detection', file_name: 'yolo11n.pt',
+      byte_size: 5613764, sha256: '0ebbc80d4a7680d14987a577cd21342b65ecfd94632bd9a8da63ae6417644ee1', distribution: 'bundled', load_verified: true,
+    });
+    expect(existsSync(path.join(environment.VISION_STUDIO_DATA_DIR, 'vision-runtime', 'Ultralytics', 'settings.json'))).toBe(true);
+    const baseModelPath = path.join(environment.VISION_STUDIO_DATA_DIR, 'models', 'base', 'yolo11n.pt');
+    expect(systemInfo.base_model.path).toBe(baseModelPath);
+    expect(createHash('sha256').update(await readFile(baseModelPath)).digest('hex')).toBe(systemInfo.base_model.sha256);
     const processes = JSON.parse(execFileSync('powershell.exe', ['-NoProfile', '-Command',
       `ConvertTo-Json -Compress -InputObject @(Get-CimInstance Win32_Process -Filter 'ParentProcessId = ${child.pid}' | Select-Object Name, ExecutablePath)`,
     ], { encoding: 'utf8', windowsHide: true }));
@@ -159,11 +176,11 @@ try {
     child = launch(); exited = watchExit(child);
     await expect.poll(async () => {
       try { return (await fetch(`http://127.0.0.1:${port}/json/version`, { signal: AbortSignal.timeout(1000) })).ok; } catch { return false; }
-    }, { timeout: 35_000 }).toBe(true);
+    }, { timeout: 60_000 }).toBe(true);
     browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
     await expect.poll(() => browser.contexts()[0].pages().length).toBeGreaterThan(0);
     page = browser.contexts()[0].pages()[0];
-    await expect(page.getByRole('status')).toHaveText('Backend Connected', { timeout: 20_000 });
+    await expect(page.getByRole('status')).toHaveText('Backend Connected', { timeout: 60_000 });
     backendUrl = await page.evaluate(() => window.__TAURI_INTERNALS__.invoke('backend_url'));
     await page.getByRole('button', { name: 'Projects', exact: true }).click();
     await page.getByRole('button', { name: 'Open Desktop QA project', exact: true }).click();
@@ -264,7 +281,7 @@ try {
   await writeFile(path.join(testRoot, 'report.json'), JSON.stringify({
     passed: true, checked_at_utc: new Date().toISOString(), executable,
     missing_backend: missingBackend, parent_crash: crash, project_crud_verified: !missingBackend, image_import_verified: !missingBackend, gallery_verified: !missingBackend, class_manager_verified: !missingBackend, annotation_restart_verified: !missingBackend,
-    dataset_export_verified: !missingBackend, clean_machine_verified: false, mode: desktop.mode, backend_url: backendUrl ?? null,
+    dataset_export_verified: !missingBackend, yolo_runtime_verified: !missingBackend, base_model_verified: !missingBackend, clean_machine_verified: false, mode: desktop.mode, backend_url: backendUrl ?? null,
   }, null, 2));
   console.log(`Desktop passed: ${missingBackend ? 'English missing-backend recovery screen' : crash ? 'parent crash and backend cleanup' : 'relocated/installed application, bundled backend, English shell, normal close and cleanup'}.`);
   console.log(`Desktop QA report: ${path.join(testRoot, 'report.json')}`);

@@ -26,7 +26,7 @@ All three agree on a project-centered, GUI-driven industrial vision product usin
 | Camera preview | Binary JPEG/WebSocket or MJPEG | USB preview first | MJPEG or binary JPEG | MJPEG first, USB before RTSP |
 | Pipeline builder | Central product feature | After counter/runtime works | Internal pipeline Phases 40-41, visual editor 42-43 | Build working runtime behavior before the graph editor |
 | Auto annotation | Temporary training after a small manual set | Suggestions from an existing model, human review | Phase 47, existing model, human review | Existing-model suggestions first; never silently promote them to ground truth |
-| Model naming | Generic YOLO Nano | Example `yolo11n.pt` | One bundled YOLO Nano, offline first training | Defer exact weights/runtime selection to Phases 15-16; do not add downloads to bootstrap |
+| Model naming | Generic YOLO Nano | Example `yolo11n.pt` | One bundled YOLO Nano, offline first training | Phase 16 pins `yolo11n.pt` as the verified bundled model; do not add running-application downloads |
 | Runtime modes | Studio, Test, Production | Studio and Runtime | Studio/Runtime, then fullscreen | Two modes first; detailed debug/locking behavior stays in product backlog |
 | Language | English UI examples, Indonesian planning prose | Same | Same | User requirement overrides ambiguity: application-owned text is always English |
 

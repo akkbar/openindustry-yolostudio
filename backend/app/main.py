@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 import platform
 import sys
@@ -9,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from app import __version__, db, projects, storage, image_import, gallery, classes, annotations, dataset_export
+from app import __version__, annotations, base_models, classes, dataset_export, db, gallery, image_import, projects, storage, training_jobs, training_worker, vision_runtime
 from app.errors import register_error_handlers
 from app.paths import initialize_storage
 
@@ -18,6 +19,28 @@ class HealthResponse(BaseModel):
     status: Literal["ok"] = "ok"
     service: Literal["vision-studio-backend"] = "vision-studio-backend"
     version: str = __version__
+
+
+class VisionRuntimeResponse(BaseModel):
+    status: Literal["ready"]
+    ultralytics_version: str
+    torch_version: str
+    torchvision_version: str
+    opencv_version: str
+
+
+class BaseModelResponse(BaseModel):
+    status: Literal["ready"]
+    id: Literal["yolo11n"]
+    display_name: Literal["YOLO11 Nano"]
+    task: Literal["object_detection"]
+    file_name: Literal["yolo11n.pt"]
+    path: str
+    byte_size: int
+    sha256: str
+    distribution: Literal["bundled"]
+    load_verified: bool
+    license: str
 
 
 class SystemInfoResponse(BaseModel):
@@ -31,6 +54,8 @@ class SystemInfoResponse(BaseModel):
     data_directory: str
     database_path: str
     database_schema_version: int
+    vision_runtime: VisionRuntimeResponse
+    base_model: BaseModelResponse
     language: Literal["en"] = "en"
 
 
@@ -41,8 +66,23 @@ async def lifespan(app: FastAPI):
     storage.recover_project_storage(app.state.data_root, app.state.database_path)
     gallery.cleanup_deleted_images(app.state.data_root, app.state.database_path)
     dataset_export.cleanup_pending_exports(app.state.data_root, app.state.database_path)
+    interrupted = training_jobs.recover_interrupted_training_jobs(app.state.database_path)
+    if interrupted:
+        logging.warning("Recovered %s interrupted training job(s).", interrupted)
+    app.state.vision_runtime = VisionRuntimeResponse(
+        **vision_runtime.initialize_runtime(app.state.data_root)
+    )
+    app.state.base_model = BaseModelResponse(
+        **base_models.provision_base_model(app.state.data_root)
+    )
     app.state.image_import_slots = asyncio.Semaphore(2)
-    yield
+    app.state.training_workers = training_worker.TrainingWorkerManager(
+        app.state.data_root, app.state.database_path
+    )
+    try:
+        yield
+    finally:
+        app.state.training_workers.shutdown()
 
 
 app = FastAPI(title="Vision Studio API", version=__version__, lifespan=lifespan)
@@ -62,11 +102,17 @@ app.include_router(gallery.router)
 app.include_router(classes.router)
 app.include_router(annotations.router)
 app.include_router(dataset_export.router)
+app.include_router(training_jobs.router)
 
 
 @app.get("/health", response_model=HealthResponse)
 def health():
     return HealthResponse()
+
+
+@app.get("/models/base", response_model=BaseModelResponse)
+def base_model():
+    return app.state.base_model
 
 
 @app.get("/system/info", response_model=SystemInfoResponse)
@@ -88,4 +134,6 @@ def system_info():
         data_directory=str(app.state.data_root),
         database_path=str(app.state.database_path),
         database_schema_version=db.SCHEMA_VERSION,
+        vision_runtime=app.state.vision_runtime,
+        base_model=app.state.base_model,
     )

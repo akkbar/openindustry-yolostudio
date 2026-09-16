@@ -55,7 +55,7 @@ impl Backend {
             address: format!("http://127.0.0.1:{port}"),
             error: None,
         };
-        let deadline = Instant::now() + Duration::from_secs(20);
+        let deadline = Instant::now() + Duration::from_secs(60);
         while Instant::now() < deadline {
             backend.ensure_running()?;
             if health_ready(port) {
@@ -63,7 +63,7 @@ impl Backend {
             }
             std::thread::sleep(Duration::from_millis(100));
         }
-        Err("The backend did not become ready within 20 seconds. Check the logs and restart Vision Studio.".into())
+        Err("The backend did not become ready within 60 seconds. Check the logs and restart Vision Studio.".into())
     }
 
     fn ensure_running(&mut self) -> Result<(), String> {

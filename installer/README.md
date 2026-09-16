@@ -2,9 +2,9 @@
 
 `npm run build:installer` creates `artifacts/VisionStudio-Setup.exe` and a SHA-256 sidecar. The English-only NSIS installer targets Windows x64 and installs for all users in `C:\Program Files\VisionStudio`. It requires administrator access and creates desktop and Start menu shortcuts plus an uninstall entry.
 
-The payload includes the Tauri desktop, embedded React assets, the complete PyInstaller backend folder with SQLite and Pillow image codecs, and Microsoft's offline WebView2 installer. Initial builds download WebView2 and NSIS tooling; installation does not need those downloads. Python, Node.js, npm, pip, Rust, and CUDA tooling are not end-user prerequisites. No AI libraries are included through Phase 14.
+The payload includes the Tauri desktop, embedded React assets, the complete PyInstaller backend folder with SQLite and Pillow image codecs, the CPU Ultralytics/PyTorch/Torchvision/OpenCV runtime, the verified YOLO11 Nano base checkpoint, and Microsoft's offline WebView2 installer. Initial builds download WebView2 and NSIS tooling; installation does not need those downloads. Python, Node.js, npm, pip, Rust, and CUDA tooling are not end-user prerequisites.
 
-Writable files belong to `%LOCALAPPDATA%\VisionStudio`, including `data`, `projects`, `logs`, and `webview`. Uninstall removes application files and shortcuts while retaining runtime data. Do not add cleanup hooks that remove this data.
+Writable files belong to `%LOCALAPPDATA%\VisionStudio`, including `data`, `projects`, `logs` (including separate training-worker output), `webview`, `vision-runtime`, and the provisioned `models/base/yolo11n.pt`. Uninstall removes application files and shortcuts while retaining runtime data. Do not add cleanup hooks that remove this data.
 
 ## Developer-host QA
 

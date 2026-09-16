@@ -1,16 +1,41 @@
 # Build on Windows x64 with the repository's locked build environment.
 from pathlib import Path
+import sys
+
+from PyInstaller.utils.hooks import get_package_paths
 
 backend_root = Path(SPECPATH).parent
 repo_root = backend_root.parent
+sys.path.insert(0, str(backend_root))
+from app import base_models
+
+torchvision_root = Path(get_package_paths("torchvision")[1])
+base_model_root = repo_root / "backend" / "assets" / "models"
+base_model_asset = base_model_root / "yolo11n.pt"
+if not base_models.is_valid_model(base_model_asset):
+    raise SystemExit("The Phase 16 yolo11n.pt base model must pass its integrity check before packaging.")
+
+# Torchvision 0.29 loads _C_stable.pyd through torch.ops.load_library(), so
+# PyInstaller cannot infer it from an ordinary Python import. Preserve all
+# native torchvision extensions at their package-relative paths.
+torchvision_extensions = [
+    (str(path), str(path.parent.relative_to(torchvision_root.parent)))
+    for path in torchvision_root.rglob("*.pyd")
+]
+base_model_assets = [
+    (str(path), str(path.parent.relative_to(repo_root / "backend")))
+    for path in base_model_root.rglob("*")
+    if path.is_file()
+]
 
 a = Analysis(
     [str(backend_root / "run_backend.py")],
     pathex=[str(backend_root)],
-    binaries=[],
-    datas=[],
+    binaries=torchvision_extensions,
+    datas=base_model_assets,
     hiddenimports=[
         "app.main",
+        "app.training_worker",
         # Declared explicitly because it carries a binary extension and a DLL.
         "sqlite3",
         "uvicorn.logging",
@@ -21,7 +46,7 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=["pytest", "httpx", "httpcore", "pip", "torch", "ultralytics", "cv2"],
+    excludes=["pytest", "httpx", "httpcore", "pip"],
     noarchive=False,
     optimize=0,
 )

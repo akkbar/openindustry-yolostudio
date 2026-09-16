@@ -17,7 +17,7 @@ if ($RequireNoPython -and ($pythonCommands.Count -gt 0 -or @($pythonRegistry).Co
     throw 'Python is installed or discoverable on this machine. Run the clean-machine gate on a fresh Windows VM without Python.'
 }
 
-$qaRoot = Join-Path $env:LOCALAPPDATA ('VisionStudio\qa\Phase 1 ' + [Guid]::NewGuid().ToString('N'))
+$qaRoot = Join-Path $env:LOCALAPPDATA ('VisionStudio\qa\Phase 18 ' + [Guid]::NewGuid().ToString('N'))
 $relocated = Join-Path $qaRoot 'Relocated backend bundle'
 $working = Join-Path $qaRoot 'Unrelated working directory'
 $runtimeData = Join-Path $qaRoot 'Runtime data'
@@ -92,7 +92,7 @@ try {
     $backendProcess = $entry.Process
     $report['process_id'] = $backendProcess.Id
     $report['api_url'] = $baseUrl
-    $deadline = [DateTime]::UtcNow.AddSeconds(30)
+    $deadline = [DateTime]::UtcNow.AddSeconds(60)
     $health = $null
     while ([DateTime]::UtcNow -lt $deadline) {
         if ($backendProcess.HasExited) { throw "Backend exited during startup: $($entry.Stderr.Result)" }
@@ -100,11 +100,29 @@ try {
     }
     Assert-Check ($null -ne $health -and $health.status -eq 'ok' -and $health.service -eq 'vision-studio-backend') 'The relocated executable serves the expected health response.'
     Assert-Check ($health.version -eq '0.1.0') 'The bundled application version matches the release.'
-    $info = Invoke-RestMethod "$baseUrl/system/info" -TimeoutSec 3
+    $info = Invoke-RestMethod "$baseUrl/system/info" -TimeoutSec 10
     Assert-Check ($info.os -eq 'Windows' -and $info.architecture -eq 'AMD64') 'System information reports Windows x64.'
     Assert-Check ($info.cpu.Length -gt 0 -and $info.logical_cpu_count -ge 1 -and $info.python_version.Length -gt 0) 'CPU and bundled Python information are available.'
     Assert-Check ($info.language -eq 'en') 'The application language is English.'
     Assert-Check ($info.data_directory -eq $runtimeData) 'Runtime storage is independent of the bundle and working directory.'
+    $vision = $info.vision_runtime
+    Assert-Check ($vision.status -eq 'ready') 'The bundled YOLO runtime initializes successfully.'
+    Assert-Check ($vision.ultralytics_version -eq '8.4.153' -and $vision.torch_version -eq '2.14.0+cpu' -and $vision.torchvision_version -eq '0.29.0+cpu' -and $vision.opencv_version -eq '5.0.0') 'The bundled runtime reports the locked Ultralytics, PyTorch, Torchvision, and OpenCV versions.'
+    $settingsPath = Join-Path $runtimeData 'vision-runtime\Ultralytics\settings.json'
+    Assert-Check (Test-Path -LiteralPath $settingsPath) 'Ultralytics settings are stored under Vision Studio runtime data.'
+    $settings = Get-Content -LiteralPath $settingsPath -Raw | ConvertFrom-Json
+    Assert-Check ($settings.datasets_dir -eq (Join-Path $runtimeData 'datasets') -and $settings.weights_dir -eq (Join-Path $runtimeData 'models') -and $settings.runs_dir -eq (Join-Path $runtimeData 'runs')) 'Ultralytics defaults resolve inside Vision Studio runtime data.'
+    Assert-Check ($settings.sync -eq $false -and $settings.vscode_msg -eq $false) 'Ultralytics background sync and editor messages are disabled.'
+    $baseModel = $info.base_model
+    $bundledModelPath = Join-Path $relocated '_internal\assets\models\yolo11n.pt'
+    $runtimeModelPath = Join-Path $runtimeData 'models\base\yolo11n.pt'
+    $modelHash = '0ebbc80d4a7680d14987a577cd21342b65ecfd94632bd9a8da63ae6417644ee1'
+    Assert-Check ($baseModel.status -eq 'ready' -and $baseModel.id -eq 'yolo11n' -and $baseModel.display_name -eq 'YOLO11 Nano' -and $baseModel.task -eq 'object_detection' -and $baseModel.file_name -eq 'yolo11n.pt' -and $baseModel.distribution -eq 'bundled' -and $baseModel.load_verified -eq $true) 'The bundled YOLO11 Nano base model is ready for offline training.'
+    Assert-Check ($baseModel.path -eq $runtimeModelPath -and $baseModel.byte_size -eq 5613764 -and $baseModel.sha256 -eq $modelHash) 'The base-model API reports its pinned local file and integrity metadata.'
+    Assert-Check ((Test-Path -LiteralPath $bundledModelPath) -and (Get-Item -LiteralPath $bundledModelPath).Length -eq 5613764 -and (Get-FileHash -LiteralPath $bundledModelPath -Algorithm SHA256).Hash.ToLowerInvariant() -eq $modelHash) 'The packaged backend includes the pinned YOLO11 Nano checkpoint.'
+    Assert-Check ((Test-Path -LiteralPath $runtimeModelPath) -and (Get-Item -LiteralPath $runtimeModelPath).Length -eq 5613764 -and (Get-FileHash -LiteralPath $runtimeModelPath -Algorithm SHA256).Hash.ToLowerInvariant() -eq $modelHash) 'Startup provisions an identical base-model copy inside application data.'
+    $runtimeModels = @(Get-ChildItem -LiteralPath $runtimeData -Filter '*.pt' -File -Recurse)
+    Assert-Check ($runtimeModels.Count -eq 1 -and $runtimeModels[0].FullName -eq $runtimeModelPath) 'Runtime initialization creates no additional model download.'
     foreach ($directory in @('data','projects','logs')) {
         Assert-Check (Test-Path -LiteralPath (Join-Path $runtimeData $directory)) "The $directory storage directory was initialized."
     }
@@ -119,6 +137,27 @@ try {
     foreach ($directory in @('dataset','models','runs','events')) {
         Assert-Check (Test-Path -LiteralPath (Join-Path $projectFolder $directory)) "The project $directory folder was created."
     }
+    $trainingJobsUrl = "$baseUrl/projects/$($created.id)/training-jobs"
+    $queuedJob = Invoke-RestMethod $trainingJobsUrl -Method Post -ContentType 'application/json' -Body '{"epochs":3,"imgsz":320}' -TimeoutSec 5
+    Assert-Check ($queuedJob.status -eq 'queued' -and $queuedJob.model -eq 'yolo11n' -and $queuedJob.epochs -eq 3 -and $queuedJob.imgsz -eq 320 -and $queuedJob.progress -eq 0 -and $null -eq $queuedJob.started_at -and $null -eq $queuedJob.finished_at) 'The packaged backend queues a persisted training job before starting a worker.'
+    $queuedJobs = Invoke-RestMethod $trainingJobsUrl -TimeoutSec 5
+    Assert-Check ($queuedJobs.total -eq 1 -and $queuedJobs.jobs[0].id -eq $queuedJob.id) 'The packaged backend lists the queued training job.'
+    $startedJob = Invoke-RestMethod "$trainingJobsUrl/$($queuedJob.id)/start" -Method Post -TimeoutSec 5
+    Assert-Check ($startedJob.status -eq 'running' -and $null -ne $startedJob.started_at) 'The packaged backend starts a claimed training job in a worker process.'
+    Assert-Check ((Invoke-RestMethod "$baseUrl/health" -TimeoutSec 5).status -eq 'ok') 'The packaged API remains responsive while the training worker starts.'
+    $workerDeadline = [DateTime]::UtcNow.AddSeconds(60)
+    $failedWorkerJob = $null
+    while ([DateTime]::UtcNow -lt $workerDeadline) {
+        $failedWorkerJob = Invoke-RestMethod "$trainingJobsUrl/$($queuedJob.id)" -TimeoutSec 5
+        if ($failedWorkerJob.status -in @('completed', 'failed', 'cancelled')) { break }
+        Start-Sleep -Milliseconds 150
+    }
+    Assert-Check ($failedWorkerJob.status -eq 'failed' -and $failedWorkerJob.error -eq 'The project dataset is not ready for training. Add at least two annotated images and validate the dataset before starting training.') 'The separate packaged worker records an invalid training dataset without blocking the API.'
+    $workerLog = Join-Path $runtimeData "logs\training-workers\$($queuedJob.id).log"
+    Assert-Check ((Test-Path -LiteralPath $workerLog) -and (Get-Content -LiteralPath $workerLog -Raw).Contains("Training worker started for job $($queuedJob.id).")) 'The packaged child process writes its own training-worker log under application data.'
+    $cancellableJob = Invoke-RestMethod $trainingJobsUrl -Method Post -ContentType 'application/json' -Body '{"epochs":3,"imgsz":320}' -TimeoutSec 5
+    $cancelledJob = Invoke-RestMethod "$trainingJobsUrl/$($cancellableJob.id)/cancel" -Method Post -TimeoutSec 5
+    Assert-Check ($cancelledJob.status -eq 'cancelled' -and $null -ne $cancelledJob.finished_at) 'The packaged backend cancels a queued training job before it starts.'
     $qaImages = Join-Path $PSScriptRoot 'qa-images'
     if (-not (Test-Path -LiteralPath $qaImages)) { $qaImages = Join-Path (Split-Path $PSScriptRoot -Parent) 'tests\fixtures\images' }
     foreach ($name in @('sample.jpg', 'sample.jpeg', 'sample.png', 'sample.webp')) {
@@ -204,7 +243,7 @@ try {
     $standalone = Start-Bundle "--port $port"
     $standalone.Process.StandardInput.Close()
     $standaloneReady = $false
-    $deadline = [DateTime]::UtcNow.AddSeconds(15)
+    $deadline = [DateTime]::UtcNow.AddSeconds(60)
     while ([DateTime]::UtcNow -lt $deadline -and -not $standalone.Process.HasExited) {
         try { $standaloneReady = (Invoke-RestMethod "$baseUrl/health" -TimeoutSec 1).status -eq 'ok'; break }
         catch { Start-Sleep -Milliseconds 150 }

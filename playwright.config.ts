@@ -18,7 +18,7 @@ export default defineConfig({
   workers: 1,
   use: { baseURL: frontendUrl, browserName: 'chromium', locale: 'id-ID', viewport: { width: 1280, height: 900 }, screenshot: 'only-on-failure' },
   webServer: [
-    { command: `"${join('.venv', 'Scripts', 'python.exe')}" backend/run_backend.py --port ${backendPort}`, url: `${backendUrl}/health`, reuseExistingServer: false, timeout: 30_000, env: { VISION_STUDIO_DATA_DIR: dataRoot } },
+    { command: `"${join('.venv', 'Scripts', 'python.exe')}" backend/run_backend.py --port ${backendPort}`, url: `${backendUrl}/health`, reuseExistingServer: false, timeout: 60_000, env: { VISION_STUDIO_DATA_DIR: dataRoot } },
     { command: `node node_modules/vite/bin/vite.js frontend --port ${frontendPort}`, url: frontendUrl, reuseExistingServer: false, timeout: 30_000, env: { VITE_API_BASE_URL: `${frontendUrl}/qa-api`, VISION_STUDIO_TEST_BACKEND_PORT: backendPort } },
   ],
 });

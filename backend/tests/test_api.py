@@ -23,6 +23,26 @@ def test_health_and_system_contract(client):
     assert info["language"] == "en"
     assert info["logical_cpu_count"] >= 1
     assert info["os"] and info["cpu"] and info["python_version"]
+    assert info["vision_runtime"] == {
+        "status": "ready",
+        "ultralytics_version": "8.4.153",
+        "torch_version": "2.14.0+cpu",
+        "torchvision_version": "0.29.0+cpu",
+        "opencv_version": "5.0.0",
+    }
+    assert info["base_model"] == {
+        "status": "ready",
+        "id": "yolo11n",
+        "display_name": "YOLO11 Nano",
+        "task": "object_detection",
+        "file_name": "yolo11n.pt",
+        "path": str(Path(info["data_directory"]) / "models" / "base" / "yolo11n.pt"),
+        "byte_size": 5_613_764,
+        "sha256": "0ebbc80d4a7680d14987a577cd21342b65ecfd94632bd9a8da63ae6417644ee1",
+        "distribution": "bundled",
+        "load_verified": True,
+        "license": "AGPL-3.0 or Enterprise",
+    }
     for directory in ("data", "projects", "logs"):
         assert (Path(info["data_directory"]) / directory).is_dir()
 

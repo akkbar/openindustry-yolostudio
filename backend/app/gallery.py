@@ -16,7 +16,7 @@ router = APIRouter(prefix="/projects/{project_id}/datasets", tags=["gallery"])
 
 def read_image(connection, project_id, image_id):
     _read(connection, project_id)
-    row = connection.execute("SELECT i.* FROM images i JOIN datasets d ON d.id = i.dataset_id WHERE d.project_id = ? AND i.id = ?", (project_id, image_id)).fetchone()
+    row = connection.execute("SELECT i.*, i.rowid AS sequence FROM images i JOIN datasets d ON d.id = i.dataset_id WHERE d.project_id = ? AND i.id = ?", (project_id, image_id)).fetchone()
     if row is None:
         raise AppError(404, "image_not_found", "This image is no longer available in the project.")
     return row
@@ -41,7 +41,7 @@ def list_images(project_id: str, space: WorkspaceDep, offset: int = Query(0, ge=
         connection.execute("BEGIN")
         _read(connection, project_id)
         total = connection.execute("SELECT COUNT(*) FROM images i JOIN datasets d ON d.id = i.dataset_id WHERE d.project_id = ?", (project_id,)).fetchone()[0]
-        rows = connection.execute("SELECT i.* FROM images i JOIN datasets d ON d.id = i.dataset_id WHERE d.project_id = ? ORDER BY i.created_at, i.id LIMIT ? OFFSET ?", (project_id, limit, offset)).fetchall()
+        rows = connection.execute("SELECT i.* FROM images i JOIN datasets d ON d.id = i.dataset_id WHERE d.project_id = ? ORDER BY i.created_at, i.rowid LIMIT ? OFFSET ?", (project_id, limit, offset)).fetchall()
         return {"images": [{**image_response(row, project_id), "annotated": bool(row["annotated"]), "original_url": f"/projects/{project_id}/datasets/images/{row['id']}/original"} for row in rows], "total": total, "offset": offset, "limit": limit}
 
 

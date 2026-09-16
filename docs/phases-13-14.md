@@ -1,6 +1,6 @@
 # Phases 13 and 14: YOLO export and dataset validation
 
-Implemented on 2026-09-15 following `phase-plan.md` and `step.md` Steps 5.1–5.3. Phase 15 has not started. No dependencies or database migrations were added.
+Implemented on 2026-09-15 following `phase-plan.md` and `step.md` Steps 5.1–5.3. No dependencies or database migrations were added in these phases. Phase 15 subsequently added and validated the bundled runtime; see [Phase 15 evidence](phase-15.md).
 
 ## Behavior
 
@@ -33,7 +33,7 @@ Validation/export run in the backend thread pool under the same SQLite write loc
 
 ## Compatibility and verification
 
-The file layout and normalized label format follow the [official Ultralytics detection dataset specification](https://docs.ultralytics.com/datasets/detect/). Format checks read emitted labels, class mappings, split manifests, image dimensions, and configuration paths. Actual Ultralytics loading/training remains deferred to Phase 15, when the heavy runtime is introduced.
+The file layout and normalized label format follow the [official Ultralytics detection dataset specification](https://docs.ultralytics.com/datasets/detect/). Format checks read emitted labels, class mappings, split manifests, image dimensions, and configuration paths. Actual Ultralytics loading is now validated by Phase 15; training remains later work.
 
 - Production frontend build passed.
 - 114 backend tests passed. New coverage includes label values, safe class names, stable class-index gaps, deterministic/disjoint splits, preserved snapshots, EXIF orientation, empty/single-image projects, corrupt/missing/duplicate images, invalid boxes/classes/paths, disk-write failure cleanup, and interrupted-export cleanup. Existing migration tests also passed after making cleanup tolerant of invalid legacy storage IDs.

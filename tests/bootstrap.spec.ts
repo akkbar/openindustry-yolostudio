@@ -13,8 +13,10 @@ test('connects to the real backend and stays English with an Indonesian browser 
   await expect(page.locator('.storage-path:not(.database-path)')).not.toHaveText('Waiting for backend');
   await expect(page.locator('.database-path')).toContainText('visionstudio.db');
   await page.getByRole('button', { name: 'Models', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'This workspace is taking shape.' })).toBeVisible();
-  await page.getByRole('button', { name: 'Back to dashboard' }).click();
+  await expect(page.getByRole('heading', { name: 'Models', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'YOLO11 Nano', exact: true })).toBeVisible();
+  await expect(page.getByText('Ready for offline training', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Dashboard', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Workspace overview' })).toBeVisible();
   await page.screenshot({ path: 'test-results/dashboard.png', fullPage: true });
   expect(errors).toEqual([]);

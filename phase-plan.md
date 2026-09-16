@@ -455,7 +455,7 @@ Annotated 72 / 300
 
 # Phase 13 — YOLO Dataset Export
 
-> Status (2026-09-15): implemented. Immutable YOLO snapshots include oriented images, normalized labels, safe consecutive class mapping, data.yaml, and a manifest. Seed 42 produces a deterministic approximately 80/20 split with nonempty disjoint sets. Build, 114 backend tests, 35 E2E tests, 77 bundled-backend checks, release/installed desktop export, and 17 installer checks passed. Actual Ultralytics loading remains deferred to Phase 15. See [Phases 13 and 14 evidence](docs/phases-13-14.md) for verification and limitations.
+> Status (2026-09-15): implemented. Immutable YOLO snapshots include oriented images, normalized labels, safe consecutive class mapping, data.yaml, and a manifest. Seed 42 produces a deterministic approximately 80/20 split with nonempty disjoint sets. Build, 114 backend tests, 35 E2E tests, 77 bundled-backend checks, release/installed desktop export, and 17 installer checks passed. Actual Ultralytics loading is now validated by Phase 15. See [Phases 13 and 14 evidence](docs/phases-13-14.md) and [Phase 15 evidence](docs/phase-15.md) for verification and limitations.
 
 Generate internal training dataset:
 
@@ -485,7 +485,7 @@ Acceptance:
 
 # Phase 14 — Dataset Validation
 
-> Status (2026-09-15): implemented. The Dataset page reports image/annotation/class counts and blocks export for invalid/out-of-bounds boxes, missing classes or images, unreadable images, zero annotations, and duplicate pixels. Export revalidates the current data before publishing. See [Phases 13 and 14 evidence](docs/phases-13-14.md). Phase 15 has not started.
+> Status (2026-09-15): implemented. The Dataset page reports image/annotation/class counts and blocks export for invalid/out-of-bounds boxes, missing classes or images, unreadable images, zero annotations, and duplicate pixels. Export revalidates the current data before publishing. See [Phases 13 and 14 evidence](docs/phases-13-14.md). Phase 15 runtime packaging is implemented; see [Phase 15 evidence](docs/phase-15.md).
 
 Sebelum train:
 
@@ -513,6 +513,8 @@ Classes      1
 ---
 
 # Phase 15 — Bundle YOLO runtime
+
+> Status (2026-09-16): implemented. The Windows x64 CPU bundle imports Ultralytics 8.4.153, PyTorch 2.14.0+cpu, Torchvision 0.29.0+cpu, and OpenCV 5.0.0 at backend startup. The relocated executable passed 85 sanitized-environment checks, and debug/release/installed desktop packaging checks passed. Phase 15 itself added no base model; the verified model asset is added by Phase 16. Fresh Windows without Python, elevated installation, and first offline WebView2 acceptance remain pending. See [Phase 15 evidence](docs/phase-15.md) and [Phase 16 evidence](docs/phase-16.md).
 
 Sebelum training UI, test packaging lagi.
 
@@ -543,6 +545,8 @@ Ini kemungkinan mulai membuat executable besar. Itu normal.
 
 # Phase 16 — Model download/bundling strategy
 
+> Status (2026-09-16): implemented. The Windows x64 bundle contains the pinned YOLO11 Nano checkpoint (`yolo11n.pt`, 5,613,764 bytes, SHA-256 `0ebbc80d4a7680d14987a577cd21342b65ecfd94632bd9a8da63ae6417644ee1`). Startup loads it from the bundle without a network fallback, then provisions an identical copy under `%LOCALAPPDATA%\VisionStudio\models\base`. The relocated backend passed 88 sanitized-environment checks; debug/release/installed desktop and 17 current-user installer checks passed. Training workers and UI remain later phases. Fresh Windows without Python, elevated installation, and first offline WebView2 acceptance remain pending. See [Phase 16 evidence](docs/phase-16.md).
+
 Jangan paksa aplikasi download base model diam-diam.
 
 Untuk MVP, bundle satu base model:
@@ -551,10 +555,10 @@ Untuk MVP, bundle satu base model:
 YOLO nano
 ```
 
-misalnya:
+Implementasi:
 
 ```text
-models/base/yolo-nano.pt
+models/base/yolo11n.pt
 ```
 
 Nanti model lain optional download.
@@ -568,6 +572,8 @@ Ini penting untuk zero-dependency deployment.
 ---
 
 # Phase 17 — Training Job Backend
+
+> Status (2026-09-16): implemented. Schema migration 6 upgrades the predeclared job fields to `model` and `imgsz` while preserving existing rows. The backend supports bounded create/list/detail/cancel operations at `/projects/{project-id}/training-jobs`; jobs start queued, use the bundled `yolo11n` model by default, and persist status, progress, metrics, timestamps, and errors. No request starts Ultralytics training or a subprocess. The backend suite passed 126 tests, frontend build and 35 E2E tests passed, and the Phase 17 relocated bundle passed 91 checks including queue/list/cancel. See [Phase 17 evidence](docs/phase-17.md).
 
 Table:
 
@@ -605,6 +611,8 @@ cancelled
 
 # Phase 18 — Training Worker
 
+> Status (2026-09-16): implemented. `POST /projects/{project-id}/training-jobs/{job-id}/start` atomically claims a queued job and returns promptly while a separate Python process runs the local CPU YOLO workflow. Development launches `python -m app --training-worker`; the bundled application launches a second `backend.exe --training-worker` process. The worker exports a locked dataset snapshot, uses the provisioned `yolo11n.pt` checkpoint with `device="cpu"` and zero data-loader workers, persists epoch progress and scalar loss/precision/recall/mAP metrics, and stores run files beneath the project. Worker output is kept under `%LOCALAPPDATA%\VisionStudio\logs\training-workers` so a failed job cannot lock its project folder. The backend accepts one active worker at a time, recovers interrupted running records on the next startup, and rejects deletion while a job is running. The training interface, polling UI, and model registry remain later phases. See [Phase 18 evidence](docs/phase-18.md).
+
 Training jangan dilakukan dalam FastAPI main process.
 
 Flow:
@@ -632,6 +640,8 @@ Acceptance:
 ---
 
 # Phase 19 — Training UI
+
+> Status (2026-09-16): implemented. The Models page now lets an operator choose a project, review the verified YOLO11 Nano base model, configure epochs and image size, see the fixed Auto/CPU device, and create then start a durable job without a CLI. It preserves a queued job for retry if the worker cannot start, while Phase 20 remains responsible for polling and progress display. See [Phase 19 evidence](docs/phase-19.md).
 
 Form:
 

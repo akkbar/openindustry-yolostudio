@@ -39,13 +39,13 @@ class CreateBoxRequest(BoxRequest):
 
 def snapshot(connection, project_id, image_id):
     image = read_image(connection, project_id, image_id)
-    rows = connection.execute("SELECT * FROM annotations WHERE image_id = ? ORDER BY created_at, id", (image_id,)).fetchall()
-    order = (image["created_at"], image["id"])
+    rows = connection.execute("SELECT * FROM annotations WHERE image_id = ? ORDER BY created_at, rowid", (image_id,)).fetchall()
+    order = (image["created_at"], image["sequence"])
     base = "FROM images i JOIN datasets d ON d.id = i.dataset_id WHERE d.project_id = ?"
-    previous = connection.execute(f"SELECT i.id {base} AND (i.created_at, i.id) < (?, ?) ORDER BY i.created_at DESC, i.id DESC LIMIT 1", (project_id, *order)).fetchone()
-    next_image = connection.execute(f"SELECT i.id {base} AND (i.created_at, i.id) > (?, ?) ORDER BY i.created_at, i.id LIMIT 1", (project_id, *order)).fetchone()
+    previous = connection.execute(f"SELECT i.id {base} AND (i.created_at, i.rowid) < (?, ?) ORDER BY i.created_at DESC, i.rowid DESC LIMIT 1", (project_id, *order)).fetchone()
+    next_image = connection.execute(f"SELECT i.id {base} AND (i.created_at, i.rowid) > (?, ?) ORDER BY i.created_at, i.rowid LIMIT 1", (project_id, *order)).fetchone()
     counts = connection.execute(f"SELECT COUNT(*), COALESCE(SUM(i.annotated != 0), 0) {base}", (project_id,)).fetchone()
-    position = connection.execute(f"SELECT COUNT(*) {base} AND (i.created_at, i.id) <= (?, ?)", (project_id, *order)).fetchone()[0]
+    position = connection.execute(f"SELECT COUNT(*) {base} AND (i.created_at, i.rowid) <= (?, ?)", (project_id, *order)).fetchone()[0]
     return {
         "image": {**image_response(image, project_id), "annotated": bool(image["annotated"]), "original_url": f"/projects/{project_id}/datasets/images/{image_id}/original"},
         "annotations": [dict(row) for row in rows], "revision": image["annotation_revision"],
