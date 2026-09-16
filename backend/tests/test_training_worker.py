@@ -118,6 +118,9 @@ def test_worker_exports_a_snapshot_then_persists_a_completed_job(workspace, monk
             data_yaml=data_yaml,
             run_directory=run_directory,
         )
+        weights = run_directory / "weights"
+        weights.mkdir()
+        (weights / "best.pt").write_bytes(b"trained checkpoint")
         return {"metrics/mAP50(B)": 0.75, "metrics/precision(B)": 0.8}
 
     monkeypatch.setattr(training_worker, "run_ultralytics_training", fake_train)
@@ -136,6 +139,9 @@ def test_worker_exports_a_snapshot_then_persists_a_completed_job(workspace, monk
     assert context["job_id"] == queued["id"]
     assert context["model_path"] == str(local_model)
     assert context["dataset_yaml"] == str(calls["data_yaml"])
+    registered = client.get(f"/projects/{project_id}/models").json()["models"]
+    assert len(registered) == 1
+    assert registered[0]["training_job_id"] == queued["id"]
 
 
 def test_ultralytics_runner_uses_the_local_cpu_configuration_and_checkpoints_metrics(

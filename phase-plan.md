@@ -670,6 +670,8 @@ Acceptance:
 
 # Phase 20 — Training Progress
 
+> Status (2026-09-16): implemented. The Models page polls the durable job API once per second and shows epoch progress, loss, precision, recall, mAP50, terminal errors, and cancellation. See [Phase 20 evidence](docs/phase-20.md).
+
 Display:
 
 ```text
@@ -688,6 +690,8 @@ Tidak perlu WebSocket sebelum memang perlu.
 ---
 
 # Phase 21 — Model Registry
+
+> Status (2026-09-16): implemented. A completed worker checkpoint is copied into the project model store with its immutable dataset snapshot, training settings, and metrics. Models can be promoted to the project's single active production model or archived. See [Phase 21 evidence](docs/phase-21.md).
 
 Saat training selesai:
 
@@ -718,6 +722,8 @@ Acceptance:
 
 # Phase 22 — USB Camera Detection
 
+> Status (2026-09-16): implemented. The local backend scans a bounded range of USB camera indexes, releases every successful or unsuccessful probe, and the Cameras page lists the openable cameras. See [Phase 22 evidence](docs/phase-22.md).
+
 Backend scan USB camera.
 
 Awal cukup:
@@ -737,6 +743,8 @@ Acceptance:
 
 # Phase 23 — Camera Preview
 
+> Status (2026-09-16): implemented. A local camera session owns one USB capture, returns successive binary JPEG frames, and releases its handle and worker thread when stopped or when the application exits. See [Phase 23 evidence](docs/phase-23.md).
+
 UI live camera.
 
 Untuk MVP:
@@ -755,6 +763,8 @@ Acceptance:
 ---
 
 # Phase 24 — Live YOLO Inference
+
+> Status (2026-09-16): implemented. A camera session loads the selected project production checkpoint on CPU and publishes normalized class, confidence, and bounding-box data with every frame. See [Phase 24 evidence](docs/phase-24.md).
 
 Pipeline:
 
@@ -781,6 +791,8 @@ Acceptance:
 ---
 
 # Phase 25 — Detection Overlay
+
+> Status (2026-09-16): implemented. The Cameras page renders live detection boxes, class labels, confidence values, and a local confidence threshold over the JPEG preview. See [Phase 25 evidence](docs/phase-25.md).
 
 Frontend overlay:
 
@@ -811,6 +823,8 @@ Di sini lakukan packaging test lagi.
 ---
 
 # Phase 26 — Full standalone build checkpoint
+
+> Status (2026-09-16): implemented and verified on the development machine. The Phase 26 Windows x64 backend bundle, release NSIS installer, missing-backend/crash desktop checks, and current-user installer QA all passed. A fresh Windows acceptance run without development tools remains an external environment gate. See [Phase 26 evidence](docs/phase-26.md).
 
 Build:
 

@@ -48,7 +48,7 @@ assert sys.platform == "win32" and struct.calcsize("P") == 8 and sys.version_inf
     })
     $manifest = [ordered]@{
         product = 'Vision Studio Backend'
-        phase = 18
+        phase = 26
         version = '0.1.0'
         platform = 'windows-x64'
         packaging = 'PyInstaller one-directory'

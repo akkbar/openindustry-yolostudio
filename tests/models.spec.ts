@@ -62,6 +62,7 @@ test('retries the same queued job when the worker cannot start immediately', asy
   let startCalls = 0;
 
   await page.route(new RegExp(`/projects/${project.id}/training-jobs$`), async route => {
+    if (route.request().method() !== 'POST') return route.fallback();
     createCalls += 1;
     await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify(queued) });
   });
@@ -76,6 +77,9 @@ test('retries the same queued job when the worker cannot start immediately', asy
     }
     await route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify(job(project.id, 'running', queued.id)) });
   });
+  await page.route(new RegExp(`/projects/${project.id}/training-jobs/${queued.id}$`), async route => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(job(project.id, 'running', queued.id)) });
+  });
 
   const training = await openTraining(page);
   await training.getByLabel('Project').selectOption(project.id);
@@ -89,10 +93,51 @@ test('retries the same queued job when the worker cannot start immediately', asy
   expect(startCalls).toBe(2);
 });
 
+test('polls epoch metrics and presents a completed model for production selection', async ({ page, request }) => {
+  const project = await createProject(request, 'Progress inspection');
+  const running = { ...job(project.id, 'running', 'c'.repeat(32)), progress: 0.5, metrics: { 'train/box_loss': 0.25, 'metrics/precision(B)': 0.8, 'metrics/recall(B)': 0.7, 'metrics/mAP50(B)': 0.75 } };
+  const completed = { ...running, status: 'completed', progress: 1, finished_at: '2026-09-16T00:00:12.000000Z' };
+  const registered = { id: 'd'.repeat(32), project_id: project.id, training_job_id: running.id, name: 'Progress inspection v1', version: 1, status: 'development', path: 'C:/models/model.pt', dataset_export_id: 'snapshot-1', settings: { model: 'yolo11n', epochs: 12, imgsz: 320, device: 'auto' }, metrics: completed.metrics, created_at: '2026-09-16T00:00:12.000000Z', active: false };
+  let pollCount = 0;
+  let production = false;
+  await page.route(new RegExp(`/projects/${project.id}/training-jobs$`), async route => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify(running) });
+  });
+  await page.route(new RegExp(`/projects/${project.id}/training-jobs/${running.id}/start$`), async route => {
+    await route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify(running) });
+  });
+  await page.route(new RegExp(`/projects/${project.id}/training-jobs/${running.id}$`), async route => {
+    pollCount += 1;
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(pollCount === 1 ? running : completed) });
+  });
+  await page.route(new RegExp(`/projects/${project.id}/models$`), async route => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: [{ ...registered, status: production ? 'production' : 'development', active: production }], active_model_id: production ? registered.id : null }) });
+  });
+  await page.route(new RegExp(`/projects/${project.id}/models/${registered.id}/activate$`), async route => {
+    production = true;
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...registered, status: 'production', active: true }) });
+  });
+
+  const training = await openTraining(page);
+  await training.getByLabel('Project').selectOption(project.id);
+  await training.getByRole('button', { name: 'Start training' }).click();
+  const progress = page.locator('.training-progress');
+  await expect(progress.getByText('Epoch 6 / 12')).toBeVisible();
+  await expect(progress.getByText('0.25', { exact: true })).toBeVisible();
+  await expect(progress.getByText('0.75', { exact: true })).toBeVisible();
+  await expect(progress.getByText('Training completed')).toBeVisible();
+  const registry = page.locator('.model-registry');
+  await expect(registry.getByText('Progress inspection v1')).toBeVisible();
+  await registry.getByRole('button', { name: 'Use in production' }).click();
+  await expect(registry.getByText('Active model')).toBeVisible();
+});
+
 test('validates numeric settings before it creates a training job', async ({ page, request }) => {
   const project = await createProject(request, 'Label inspection');
   let createCalls = 0;
   await page.route(new RegExp(`/projects/${project.id}/training-jobs$`), async route => {
+    if (route.request().method() !== 'POST') return route.fallback();
     createCalls += 1;
     await route.abort();
   });

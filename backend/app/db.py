@@ -41,6 +41,22 @@ def _migrate_training_jobs_phase_17(connection: sqlite3.Connection) -> None:
     )
 
 
+def _migrate_model_registry_phase_21(connection: sqlite3.Connection) -> None:
+    """Add the durable metadata needed for reusable trained checkpoints."""
+    project_columns = {row["name"] for row in connection.execute("PRAGMA table_info(projects)")}
+    if "active_model_id" not in project_columns:
+        connection.execute("ALTER TABLE projects ADD COLUMN active_model_id TEXT")
+    model_columns = {row["name"] for row in connection.execute("PRAGMA table_info(models)")}
+    if "dataset_export_id" not in model_columns:
+        connection.execute("ALTER TABLE models ADD COLUMN dataset_export_id TEXT")
+    if "settings" not in model_columns:
+        connection.execute("ALTER TABLE models ADD COLUMN settings TEXT")
+    connection.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_models_training_job "
+        "ON models(training_job_id) WHERE training_job_id IS NOT NULL"
+    )
+
+
 # Each entry upgrades the database from ``version - 1`` to ``version``.
 # Never edit a released migration; append a new one instead.
 MIGRATIONS: list[Migration] = [
@@ -199,6 +215,7 @@ MIGRATIONS: list[Migration] = [
         "ALTER TABLE images ADD COLUMN annotation_revision INTEGER NOT NULL DEFAULT 0",
     )),
     (6, _migrate_training_jobs_phase_17),
+    (7, _migrate_model_registry_phase_21),
 ]
 
 SCHEMA_VERSION = MIGRATIONS[-1][0]

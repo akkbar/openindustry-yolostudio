@@ -138,6 +138,67 @@ export const createTrainingJob = (projectId: string, draft: TrainingJobDraft) =>
 export const startTrainingJob = (projectId: string, jobId: string) =>
   call<TrainingJob>(`${trainingJobsRoute(projectId)}/${encodeURIComponent(jobId)}/start`, { method: 'POST' });
 
+export const getTrainingJob = (projectId: string, jobId: string, signal?: AbortSignal) =>
+  call<TrainingJob>(`${trainingJobsRoute(projectId)}/${encodeURIComponent(jobId)}`, { signal });
+
+export const listTrainingJobs = (projectId: string, signal?: AbortSignal) =>
+  call<{ jobs: TrainingJob[]; total: number; offset: number; limit: number }>(trainingJobsRoute(projectId), { signal });
+
+export const cancelTrainingJob = (projectId: string, jobId: string) =>
+  call<TrainingJob>(`${trainingJobsRoute(projectId)}/${encodeURIComponent(jobId)}/cancel`, { method: 'POST' });
+
+export type RegisteredModelStatus = 'development' | 'production' | 'archived';
+export interface RegisteredModel {
+  id: string; project_id: string; training_job_id: string | null; name: string; version: number;
+  status: RegisteredModelStatus; path: string; dataset_export_id: string | null;
+  settings: Record<string, string | number>; metrics: Record<string, number>; created_at: string; active: boolean;
+}
+const projectModelsRoute = (projectId: string) => `/projects/${encodeURIComponent(projectId)}/models`;
+export const listRegisteredModels = (projectId: string, signal?: AbortSignal) =>
+  call<{ models: RegisteredModel[]; active_model_id: string | null }>(projectModelsRoute(projectId), { signal });
+export const activateRegisteredModel = (projectId: string, modelId: string) =>
+  call<RegisteredModel>(`${projectModelsRoute(projectId)}/${encodeURIComponent(modelId)}/activate`, { method: 'POST' });
+export const archiveRegisteredModel = (projectId: string, modelId: string) =>
+  call<RegisteredModel>(`${projectModelsRoute(projectId)}/${encodeURIComponent(modelId)}/archive`, { method: 'POST' });
+
+export interface UsbCamera { id: string; index: number; name: string; source_type: 'usb' }
+export const listUsbCameras = (signal?: AbortSignal) =>
+  call<{ cameras: UsbCamera[]; scanned: number }>('/cameras/usb', { signal });
+
+export interface CameraDetection {
+  class_id: number; class_name: string; confidence: number;
+  x: number; y: number; width: number; height: number;
+}
+export interface CameraSession {
+  id: string; project_id: string; camera_index: number;
+  status: 'starting' | 'running' | 'failed' | 'stopped';
+  inference_status: 'ready' | 'no_active_model' | 'unavailable';
+  active_model_id: string | null; frame_id: number;
+  frame_width: number | null; frame_height: number | null; fps: number;
+  detections: CameraDetection[]; error: string | null;
+}
+const cameraSessionsRoute = (projectId: string) => `/projects/${encodeURIComponent(projectId)}/cameras/usb`;
+export const startCameraSession = (projectId: string, cameraIndex: number) =>
+  call<CameraSession>(`${cameraSessionsRoute(projectId)}/${cameraIndex}/sessions`, { method: 'POST' });
+export const getCameraSession = (projectId: string, sessionId: string, signal?: AbortSignal) =>
+  call<CameraSession>(`${cameraSessionsRoute(projectId)}/sessions/${encodeURIComponent(sessionId)}`, { signal });
+export const stopCameraSession = (projectId: string, sessionId: string) =>
+  call<void>(`${cameraSessionsRoute(projectId)}/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' });
+export interface CameraFrame { id: number; image_url: string; detections: CameraDetection[] }
+export async function readCameraFrame(projectId: string, sessionId: string, after: number, signal?: AbortSignal): Promise<CameraFrame | null> {
+  const response = await fetch(`${await apiBase()}${cameraSessionsRoute(projectId)}/sessions/${encodeURIComponent(sessionId)}/frame?after=${after}`, { signal, headers: { Accept: 'image/jpeg' } });
+  if (response.status === 204) return null;
+  if (!response.ok) {
+    let message: string = en.apiFailure;
+    try { message = ((await response.json()) as { error?: { message?: string } }).error?.message ?? message; } catch { /* Use the English fallback. */ }
+    throw new ApiError('camera_frame_failed', message);
+  }
+  const header = response.headers.get('X-Vision-Detections');
+  let detections: CameraDetection[] = [];
+  try { detections = header ? JSON.parse(header) as CameraDetection[] : []; } catch { /* Ignore malformed optional metadata. */ }
+  return { id: Number(response.headers.get('X-Vision-Frame-Id') ?? after + 1), image_url: URL.createObjectURL(await response.blob()), detections };
+}
+
 export interface DatasetValidation {
   valid: boolean; images: number; annotations: number; classes: number; issue_count: number;
   issues: { code: string; message: string; image_id: string | null; file_name: string | null; annotation_id: string | null }[];

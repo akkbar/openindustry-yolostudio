@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
-from app import base_models, dataset_export, db, storage, training_jobs, vision_runtime
+from app import base_models, dataset_export, db, model_registry, storage, training_jobs, vision_runtime
 from app.errors import AppError
 
 
@@ -216,6 +216,10 @@ def run_training_job(job_id: str, data_root: Path) -> int:
             database, job, model_path, Path(snapshot["yaml_path"]), run_directory
         )
         if training_jobs.complete_training_job(database, job_id, metrics):
+            try:
+                model_registry.register_completed_training_job(database, data_root, job, run_directory, metrics)
+            except Exception:
+                logging.exception("The completed training checkpoint could not be added to the model registry.")
             print(f"Training worker completed job {job_id}.", flush=True)
         else:
             print(f"Training worker stopped because job {job_id} was cancelled.", flush=True)

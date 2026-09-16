@@ -17,7 +17,7 @@ if ($RequireNoPython -and ($pythonCommands.Count -gt 0 -or @($pythonRegistry).Co
     throw 'Python is installed or discoverable on this machine. Run the clean-machine gate on a fresh Windows VM without Python.'
 }
 
-$qaRoot = Join-Path $env:LOCALAPPDATA ('VisionStudio\qa\Phase 18 ' + [Guid]::NewGuid().ToString('N'))
+$qaRoot = Join-Path $env:LOCALAPPDATA ('VisionStudio\qa\Phase 26 ' + [Guid]::NewGuid().ToString('N'))
 $relocated = Join-Path $qaRoot 'Relocated backend bundle'
 $working = Join-Path $qaRoot 'Unrelated working directory'
 $runtimeData = Join-Path $qaRoot 'Runtime data'
@@ -142,6 +142,10 @@ try {
     Assert-Check ($queuedJob.status -eq 'queued' -and $queuedJob.model -eq 'yolo11n' -and $queuedJob.epochs -eq 3 -and $queuedJob.imgsz -eq 320 -and $queuedJob.progress -eq 0 -and $null -eq $queuedJob.started_at -and $null -eq $queuedJob.finished_at) 'The packaged backend queues a persisted training job before starting a worker.'
     $queuedJobs = Invoke-RestMethod $trainingJobsUrl -TimeoutSec 5
     Assert-Check ($queuedJobs.total -eq 1 -and $queuedJobs.jobs[0].id -eq $queuedJob.id) 'The packaged backend lists the queued training job.'
+    $registeredModels = Invoke-RestMethod "$baseUrl/projects/$($created.id)/models" -TimeoutSec 5
+    Assert-Check ($null -eq $registeredModels.active_model_id -and @($registeredModels.models).Count -eq 0) 'The packaged backend exposes an empty project model registry before training completes.'
+    $cameras = Invoke-RestMethod "$baseUrl/cameras/usb?limit=1" -TimeoutSec 10
+    Assert-Check ($cameras.scanned -eq 1 -and @($cameras.cameras).Count -le 1 -and @($cameras.cameras | Where-Object { $_.id -notmatch '^usb-[0-9]+$' -or $_.name -notmatch '^Camera [0-9]+$' }).Count -eq 0) 'The packaged backend scans a bounded USB-camera range and returns stable camera identities.'
     $startedJob = Invoke-RestMethod "$trainingJobsUrl/$($queuedJob.id)/start" -Method Post -TimeoutSec 5
     Assert-Check ($startedJob.status -eq 'running' -and $null -ne $startedJob.started_at) 'The packaged backend starts a claimed training job in a worker process.'
     Assert-Check ((Invoke-RestMethod "$baseUrl/health" -TimeoutSec 5).status -eq 'ok') 'The packaged API remains responsive while the training worker starts.'
@@ -214,7 +218,7 @@ try {
     $denied = Invoke-WebRequest "$baseUrl/health" -UseBasicParsing -Headers @{ Origin = 'https://untrusted.example' }
     Assert-Check (-not $denied.Headers['Access-Control-Allow-Origin']) 'Untrusted CORS origins are not allowed.'
     $schema = Invoke-RestMethod "$baseUrl/openapi.json" -TimeoutSec 3
-    Assert-Check ($schema.info.title -eq 'Vision Studio API' -and $null -ne $schema.paths.'/system/info') 'The packaged API schema is available.'
+    Assert-Check ($schema.info.title -eq 'Vision Studio API' -and $null -ne $schema.paths.'/system/info' -and $null -ne $schema.paths.'/projects/{project_id}/cameras/usb/{camera_index}/sessions') 'The packaged API schema includes the local camera preview and inference session endpoint.'
 
     $collision = Start-Bundle "--port $port"
     Assert-Check ($collision.Process.WaitForExit(10000)) 'A second backend exits when its port is occupied.'

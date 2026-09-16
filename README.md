@@ -5,7 +5,7 @@ About: a Platform to create YOLO model then use your connected camera (USB, RTSP
 #========================Line below updated by AI=====================
 # Vision Studio
 
-Industrial computer vision applications, from dataset to production, without writing Python. **Implemented through Phase 19: bundled desktop, offline NSIS installer, projects, image import, dataset gallery, classes, a bounding-box annotation editor, validated YOLO dataset export, a bundled CPU YOLO runtime, a verified YOLO11 Nano base checkpoint, durable training-job records, a separate CPU training worker, and a GUI training launcher. Training progress, model registry, and camera access remain later phases. Clean-Windows and elevated installation acceptance remain pending.**
+Industrial computer vision applications, from dataset to production, without writing Python. **Implemented through Phase 26: bundled desktop, offline NSIS installer, projects, image import, dataset gallery, classes, a bounding-box annotation editor, validated YOLO dataset export, a bundled CPU YOLO runtime, a verified YOLO11 Nano base checkpoint, durable training jobs, a separate CPU training worker, polling progress metrics, a project model registry with production selection, USB-camera discovery, local JPEG preview, CPU live inference, detection overlays, and a full standalone packaging checkpoint. Clean-Windows and elevated installation acceptance remain pending.**
 
 The application always uses **English**, including errors and default content. User-entered data is preserved as entered. The source planning documents retain their original language.
 
@@ -20,6 +20,10 @@ See [Phase 17 training-job backend](docs/phase-17.md) for the persisted job cont
 See [Phase 18 training worker](docs/phase-18.md) for the separate-process lifecycle, local training inputs and outputs, and verification evidence.
 
 See [Phase 19 training UI](docs/phase-19.md) for the Models-page launcher, validation, retry behavior, and browser verification.
+
+See [Phase 20 training progress](docs/phase-20.md), [Phase 21 model registry](docs/phase-21.md), and [Phase 22 USB cameras](docs/phase-22.md) for the training result flow and local camera discovery.
+
+See [Phase 23 camera preview](docs/phase-23.md), [Phase 24 live inference](docs/phase-24.md), [Phase 25 detection overlay](docs/phase-25.md), and [Phase 26 standalone checkpoint](docs/phase-26.md) for the local camera-to-detection path and packaging verification.
 
 ## Run the packaged application
 
@@ -134,9 +138,9 @@ Runtime storage defaults to `%LOCALAPPDATA%\VisionStudio\`, with `data`, `projec
 
 `test:desktop` starts the built desktop app, inspects its actual WebView2, checks backend connectivity, closes the window through Tauri, and verifies that the API stops. It enables a local debug port only for that test process; normal launches do not enable remote debugging. Desktop shutdown closes a lifetime pipe so both the Windows Python redirector and its backend process exit.
 
-The API exposes `GET /health`, `GET /system/info`, the read-only base-model status on `/models/base`, project management on `/projects`, and persisted training jobs on `/projects/{project-id}/training-jobs`. `POST /projects/{project-id}/training-jobs/{job-id}/start` returns `202 Accepted` after launching a separate worker process; it never runs Ultralytics inside the API request. OpenAPI documentation is available at `/docs`. The API binds to `127.0.0.1` only. Failures use one English envelope, `{"error": {"code", "message"}}`.
+The API exposes `GET /health`, `GET /system/info`, the read-only base-model status on `/models/base`, project management on `/projects`, persisted training jobs on `/projects/{project-id}/training-jobs`, registered models on `/projects/{project-id}/models`, local USB camera discovery on `/cameras/usb`, and camera sessions under `/projects/{project-id}/cameras/usb/{camera-index}/sessions`. A session owns one local camera, provides binary JPEG frames, and runs the active production checkpoint when available. `POST /projects/{project-id}/training-jobs/{job-id}/start` returns `202 Accepted` after launching a separate worker process; it never runs Ultralytics inside the API request. OpenAPI documentation is available at `/docs`. The API binds to `127.0.0.1` only. Failures use one English envelope, `{"error": {"code", "message"}}`.
 
-The workspace database is created on first start using the standard library `sqlite3` module, so no database server is involved. Schema changes are append-only migrations keyed to `PRAGMA user_version`; a database written by a newer application version is refused rather than downgraded. Phase 8 uses Pillow 12.3.0 for image validation and thumbnails. Phase 15 bundles the CPU AI runtime; Phase 16 provisions the verified offline base model; Phase 17 persists training-job configuration and lifecycle state; Phase 18 executes each started job in its own CPU worker process; Phase 19 starts that job from the Models page. Training progress, model registry, and camera access remain planned.
+The workspace database is created on first start using the standard library `sqlite3` module, so no database server is involved. Schema changes are append-only migrations keyed to `PRAGMA user_version`; a database written by a newer application version is refused rather than downgraded. Phase 8 uses Pillow 12.3.0 for image validation and thumbnails. Phase 15 bundles the CPU AI runtime; Phase 16 provisions the verified offline base model; Phase 17 persists training-job configuration and lifecycle state; Phase 18 executes each started job in its own CPU worker process; Phase 19 launches it from the Models page; Phase 20 polls its metrics; Phase 21 registers successful checkpoints; Phase 22 discovers openable USB camera indexes; and Phases 23–25 stream local frames, infer with the active production model, and render detection overlays.
 
 ## Import images
 
@@ -148,7 +152,7 @@ Original bytes are copied into the project's `dataset/images` folder with unique
 
 Use **View dataset gallery** in a project, or choose the project on the Dataset page. Each page displays up to 60 thumbnails with filenames, dimensions, and annotation status. **Previous page** and **Next page** keep browsing bounded for larger datasets. Select a thumbnail to preview the original image; use **Close preview** or Escape to return.
 
-**Delete** asks for confirmation before removing an image and its annotations. Image counts and the gallery refresh after imports and deletions. Locked files are queued for cleanup on the next deletion or application start. Annotation editing begins in later phases; new images initially show **Not annotated**.
+**Delete** asks for confirmation before removing an image and its annotations. Image counts and the gallery refresh after imports and deletions. Locked files are queued for cleanup on the next deletion or application start. New images initially show **Not annotated** and can be opened in the annotation editor.
 
 ## Manage classes
 
@@ -162,7 +166,7 @@ Use **Annotate** on a gallery card. Choose an active class and drag on the image
 
 Use **Zoom in/out**, the mouse wheel, **Pan image**, middle-button dragging, **Fit image**, and **Reset view** to control the view. Previous/Next and A/D move through the project's image order. Delete removes the selected box; 1–9 choose the first nine classes in the list. Shortcuts ignore form controls. **Annotated N / total** counts images with saved boxes.
 
-Wait for **All changes saved** before closing. A failed save keeps the draft and blocks image navigation until retry succeeds or you confirm discarding the change. If another window changed the annotations, reload the saved version before editing again. Class creation remains in the Dataset sidebar. Use the validation and export panel below the image importer to prepare a training dataset. The Models page shows the verified bundled checkpoint and starts a job for a selected project; training progress and camera features remain later phases.
+Wait for **All changes saved** before closing. A failed save keeps the draft and blocks image navigation until retry succeeds or you confirm discarding the change. If another window changed the annotations, reload the saved version before editing again. Class creation remains in the Dataset sidebar. Use the validation and export panel below the image importer to prepare a training dataset. The Models page starts jobs, reports their persisted metrics, and lets you select a completed model for production. The Cameras page lists locally openable USB camera indexes, starts a JPEG preview, and overlays detections from the active production model.
 
 E2E tests use separate ports (backend 18765, frontend 11420 by default), isolated storage, and a Vite-only API proxy so an existing development session can remain running. Override `VISION_STUDIO_TEST_BACKEND_PORT` and `VISION_STUDIO_TEST_FRONTEND_PORT` if those ports are occupied. The production API's allowed origins are unchanged. Restart a running development backend after backend source changes to load the new endpoints and migrations.
 

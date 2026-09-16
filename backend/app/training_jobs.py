@@ -33,9 +33,11 @@ class TrainingJobResponse(BaseModel):
     model: Literal["yolo11n"]
     epochs: int
     imgsz: int
+    device: Literal["auto"]
     progress: float
     metrics: dict[str, float] | None
     created_at: str
+    updated_at: str
     started_at: str | None
     finished_at: str | None
     error: str | None
@@ -67,9 +69,11 @@ def _response(row) -> TrainingJobResponse:
         model=row["model"],
         epochs=row["epochs"],
         imgsz=row["imgsz"],
+        device=row["device"],
         progress=row["progress"],
         metrics=metrics,
         created_at=row["created_at"],
+        updated_at=row["updated_at"],
         started_at=row["started_at"],
         finished_at=row["finished_at"],
         error=row["error"],

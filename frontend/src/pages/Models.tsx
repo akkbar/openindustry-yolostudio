@@ -1,8 +1,9 @@
 import { type FormEvent, useEffect, useState } from 'react';
-import { Check, CircleHelp, HardDrive, Play, ShieldCheck } from 'lucide-react';
+import { Archive, Check, CircleHelp, HardDrive, Play, RefreshCw, ShieldCheck, X } from 'lucide-react';
 import {
-  ApiError, createTrainingJob, listProjects, startTrainingJob,
-  type BaseModel, type Project, type TrainingJob,
+  ApiError, activateRegisteredModel, archiveRegisteredModel, cancelTrainingJob, createTrainingJob,
+  getTrainingJob, listProjects, listRegisteredModels, listTrainingJobs, startTrainingJob,
+  type BaseModel, type Project, type RegisteredModel, type TrainingJob,
 } from '../api';
 import { APP_LOCALE, en } from '../locales/en';
 
@@ -98,7 +99,8 @@ function TrainingForm({ baseModel }: { baseModel: BaseModel }) {
     }
   };
 
-  const controlsLocked = busy || !!pendingJob || !!startedJob;
+  const jobIsActive = startedJob?.status === 'queued' || startedJob?.status === 'running';
+  const controlsLocked = busy || !!pendingJob || jobIsActive;
   return <section className="training-panel" aria-labelledby="training-title">
     <header className="training-heading">
       <div><p className="eyebrow">{copy.title}</p><h2 id="training-title">{copy.title}</h2><p>{copy.detail}</p></div>
@@ -126,11 +128,97 @@ function TrainingForm({ baseModel }: { baseModel: BaseModel }) {
       {pendingJob && <p className="training-pending training-wide-field">{copy.queuedDetail}</p>}
       {startedJob && <div className="training-result training-wide-field" role="status"><Check size={20} /><div><strong>{copy.started}</strong><p>{copy.startedDetail}</p><span>{copy.jobId}: <code>{startedJob.id}</code></span></div></div>}
       <div className="training-actions training-wide-field">
-        <button className="primary-button" disabled={!selectedProject || !loaded || !!loadError || busy || !!startedJob}>
+        <button className="primary-button" disabled={!selectedProject || !loaded || !!loadError || busy || jobIsActive}>
           <Play size={16} />{busy ? copy.starting : pendingJob ? copy.retryStart : copy.start}
         </button>
       </div>
     </form>
+    {projectId && <TrainingProgress projectId={projectId} job={startedJob} onUpdate={setStartedJob} />}
+    {projectId && <ProjectModels projectId={projectId} refreshKey={startedJob?.status === 'completed' ? startedJob.id : ''} />}
+  </section>;
+}
+
+const isActive = (job: TrainingJob) => job.status === 'queued' || job.status === 'running';
+const metric = (metrics: Record<string, number> | null, keys: string[]) => {
+  const value = keys.map(key => metrics?.[key]).find(value => typeof value === 'number');
+  return typeof value === 'number' ? value.toLocaleString(APP_LOCALE, { maximumFractionDigits: 4 }) : '—';
+};
+
+function TrainingProgress({ projectId, job, onUpdate }: { projectId: string; job: TrainingJob | null; onUpdate: (job: TrainingJob | null) => void }) {
+  const copy = en.models.progress;
+  const [current, setCurrent] = useState<TrainingJob | null>(job);
+  const [error, setError] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+
+  useEffect(() => {
+    let disposed = false;
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const update = (next: TrainingJob | null) => {
+      if (disposed) return;
+      setCurrent(next); onUpdate(next);
+      if (next && !isActive(next) && timer) clearInterval(timer);
+    };
+    const refresh = async () => {
+      try {
+        const target = job ?? (await listTrainingJobs(projectId)).jobs[0] ?? null;
+        update(target ? await getTrainingJob(projectId, target.id) : null);
+        if (!disposed) setError(null);
+      } catch (failure) { if (!disposed) setError(describe(failure)); }
+    };
+    void refresh();
+    timer = setInterval(() => { if (!current || isActive(current)) void refresh(); }, 1_000);
+    return () => { disposed = true; if (timer) clearInterval(timer); };
+  }, [projectId, job?.id]);
+
+  const cancel = async () => {
+    if (!current) return;
+    setCancelling(true); setError(null);
+    try {
+      const next = await cancelTrainingJob(projectId, current.id);
+      setCurrent(next); onUpdate(next);
+    } catch (failure) { setError(describe(failure)); }
+    finally { setCancelling(false); }
+  };
+
+  if (!current && !error) return <section className="training-progress" aria-live="polite"><p>{copy.noJob}</p></section>;
+  const completedEpochs = Math.min(current?.epochs ?? 0, Math.round((current?.progress ?? 0) * (current?.epochs ?? 0)));
+  const percent = Math.round((current?.progress ?? 0) * 100);
+  return <section className="training-progress" aria-labelledby="training-progress-title" aria-busy={!!current && isActive(current)}>
+    <header><div><h2 id="training-progress-title">{copy.title}</h2>{current && <p>{copy.epoch(completedEpochs.toLocaleString(APP_LOCALE), current.epochs.toLocaleString(APP_LOCALE))}</p>}</div>{current && <span className={`job-status ${current.status}`}>{copy[current.status]}</span>}</header>
+    {current && <><progress value={current.progress} max={1}>{percent}%</progress><p className="training-percent">{percent.toLocaleString(APP_LOCALE)}%</p>
+      <dl className="training-metrics"><div><dt>{copy.loss}</dt><dd>{metric(current.metrics, ['train/box_loss', 'box_loss'])}</dd></div><div><dt>{copy.precision}</dt><dd>{metric(current.metrics, ['metrics/precision(B)', 'precision'])}</dd></div><div><dt>{copy.recall}</dt><dd>{metric(current.metrics, ['metrics/recall(B)', 'recall'])}</dd></div><div><dt>{copy.map50}</dt><dd>{metric(current.metrics, ['metrics/mAP50(B)', 'mAP50'])}</dd></div></dl>
+      {current.error && <p className="field-error" role="alert">{current.error}</p>}
+      {isActive(current) && <button className="ghost-button danger" disabled={cancelling} onClick={() => void cancel()}><X size={15} />{cancelling ? copy.cancelling : copy.cancel}</button>}
+      {isActive(current) && <p className="training-poll-note"><RefreshCw size={14} />{copy.updated}</p>}</>}
+    {error && <p className="field-error" role="alert">{error}</p>}
+  </section>;
+}
+
+function ProjectModels({ projectId, refreshKey }: { projectId: string; refreshKey: string }) {
+  const copy = en.models.registry;
+  const [models, setModels] = useState<RegisteredModel[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const load = async () => {
+    setError(null);
+    try { setModels((await listRegisteredModels(projectId)).models); }
+    catch (failure) { setError(describe(failure)); }
+  };
+  useEffect(() => { void load(); }, [projectId, refreshKey]);
+  const act = async (model: RegisteredModel, action: 'activate' | 'archive') => {
+    setBusy(model.id); setError(null);
+    try { await (action === 'activate' ? activateRegisteredModel(projectId, model.id) : archiveRegisteredModel(projectId, model.id)); await load(); }
+    catch (failure) { setError(describe(failure) || copy.actionFailed); }
+    finally { setBusy(null); }
+  };
+  return <section className="model-registry" aria-labelledby="model-registry-title">
+    <header><div><h2 id="model-registry-title">{copy.title}</h2><p>{copy.detail}</p></div></header>
+    {error && <p className="field-error" role="alert">{error}</p>}
+    {models === null ? <p>{en.models.progress.loading}</p> : !models.length ? <p>{copy.empty}</p> : <ul>{models.map(model => <li key={model.id}>
+      <div><strong>{model.name}</strong><span className={`model-status ${model.status}`}>{copy[model.status]}</span>{model.active && <span className="model-active">{copy.active}</span>}
+        <p>{copy.version(model.version.toLocaleString(APP_LOCALE))} · {copy.map50}: {metric(model.metrics, ['metrics/mAP50(B)', 'mAP50'])}</p></div>
+      <div className="model-actions">{model.status !== 'production' && model.status !== 'archived' && <button className="ghost-button" disabled={!!busy} onClick={() => void act(model, 'activate')}><Check size={15} />{copy.activate}</button>}{model.status !== 'archived' && <button className="ghost-button danger" disabled={!!busy} onClick={() => void act(model, 'archive')}><Archive size={15} />{copy.archive}</button>}</div>
+    </li>)}</ul>}
   </section>;
 }
 

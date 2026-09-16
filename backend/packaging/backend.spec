@@ -35,6 +35,9 @@ a = Analysis(
     datas=base_model_assets,
     hiddenimports=[
         "app.main",
+        "app.model_registry",
+        "app.cameras",
+        "app.camera_sessions",
         "app.training_worker",
         # Declared explicitly because it carries a binary extension and a DLL.
         "sqlite3",
